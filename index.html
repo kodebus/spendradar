@@ -6,6 +6,7 @@
 <title>Spend Radar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <style>
   :root{
     --bg:#F6F8FB;
@@ -152,6 +153,7 @@
   </div>
 
   <div class="actions-row">
+    <button class="action-btn" id="bankBtn" onclick="bankButtonClick()">🏦 Connect bank</button>
     <button class="action-btn" onclick="togglePanel('csvPanel')">📄 Upload CSV</button>
     <button class="action-btn" onclick="togglePanel('pastePanel')">📋 Paste transactions</button>
     <button class="action-btn" onclick="togglePanel('shotPanel')">🖼️ Paste screenshot</button>
@@ -217,6 +219,10 @@
       <label>Anthropic API key (optional — only needed for screenshot import once deployed on your own site)</label>
       <input type="password" id="setApiKey" placeholder="sk-ant-...">
     </div>
+    <div class="field">
+      <label>App password (required for Connect bank — must match the APP_SECRET set on the server)</label>
+      <input type="password" id="setAppSecret" placeholder="shared password for this deployment">
+    </div>
     <div class="modal-buttons">
       <button class="btn-sm" onclick="closeSettings()">Cancel</button>
       <button class="btn-sm primary" onclick="saveSettings()">Save</button>
@@ -236,7 +242,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { name:'', limit:400, cycleDay:19, apiKey:'', transactions:[] };
+  return { name:'', limit:400, cycleDay:19, apiKey:'', appSecret:'', bankConnected:false, transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -247,6 +253,7 @@ function openSettings(){
   document.getElementById('setLimit').value = state.limit || '';
   document.getElementById('setCycle').value = state.cycleDay || '';
   document.getElementById('setApiKey').value = state.apiKey || '';
+  document.getElementById('setAppSecret').value = state.appSecret || '';
   document.getElementById('settingsModal').classList.add('open');
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
@@ -255,6 +262,7 @@ function saveSettings(){
   state.limit = parseFloat(document.getElementById('setLimit').value) || 0;
   state.cycleDay = parseInt(document.getElementById('setCycle').value) || 19;
   state.apiKey = document.getElementById('setApiKey').value.trim();
+  state.appSecret = document.getElementById('setAppSecret').value.trim();
   save();
   closeSettings();
   render();
@@ -412,6 +420,80 @@ async function extractFromImage(base64, mediaType){
     .map(r=>({date:r.date, merchant:r.merchant||'Unknown', amount:Math.abs(parseFloat(r.amount)), category:guessCategory(r.merchant||'')}));
 }
 
+// ---------- bank connect (Plaid) ----------
+async function apiCall(path, body, silent){
+  try{
+    const res = await fetch(path, {
+      method: body===undefined ? 'GET' : 'POST',
+      headers: Object.assign({ 'x-app-secret': state.appSecret||'' }, body!==undefined ? {'Content-Type':'application/json'} : {}),
+      body: body!==undefined ? JSON.stringify(body) : undefined
+    });
+    if(res.status===401){ if(!silent) showToast('Wrong app password — set it in Settings'); return null; }
+    return await res.json();
+  }catch(e){
+    console.error(e);
+    if(!silent) showToast('Could not reach the server — is this deployed with the backend running?');
+    return null;
+  }
+}
+
+async function checkBankStatus(){
+  if(!state.appSecret) return;
+  const data = await apiCall('/api/bank-status', undefined, true);
+  state.bankConnected = !!(data && data.connected);
+  renderBankBtn();
+}
+
+function renderBankBtn(){
+  const btn = document.getElementById('bankBtn');
+  if(!btn) return;
+  btn.textContent = state.bankConnected ? '🔄 Sync bank transactions' : '🏦 Connect bank';
+}
+
+function bankButtonClick(){
+  if(state.bankConnected) return syncBankTransactions();
+  return connectBank();
+}
+
+async function connectBank(){
+  if(!state.appSecret) return showToast('Set the app password in Settings first');
+  showToast('Opening bank connection…');
+  const linkRes = await apiCall('/api/create-link-token', {});
+  if(!linkRes || !linkRes.link_token) return showToast('Could not start bank connection');
+  const handler = Plaid.create({
+    token: linkRes.link_token,
+    onSuccess: async (public_token) => {
+      showToast('Linking account…');
+      const exch = await apiCall('/api/exchange-public-token', { public_token });
+      if(exch && exch.connected){
+        state.bankConnected = true;
+        renderBankBtn();
+        showToast('Bank connected — syncing transactions…');
+        await syncBankTransactions();
+      } else {
+        showToast('Bank link failed to save');
+      }
+    },
+    onExit: (err) => { if(err) console.error(err); }
+  });
+  handler.open();
+}
+
+async function syncBankTransactions(){
+  showToast('Syncing transactions…');
+  const data = await apiCall('/api/sync-transactions', {});
+  if(!data) return;
+  if(data.error) return showToast(data.error);
+  const parsed = (data.transactions||[]).map(t=>({
+    date: t.date,
+    merchant: t.merchant || 'Unknown',
+    amount: Math.abs(t.amount),
+    category: guessCategory(t.merchant||'')
+  }));
+  if(!parsed.length) return showToast('No new transactions since last sync');
+  startReview(parsed);
+}
+
 // ---------- review / dedupe ----------
 function isDuplicate(tx){
   return state.transactions.some(t => t.date===tx.date && t.merchant===tx.merchant && Math.abs(t.amount-tx.amount)<0.005);
@@ -558,6 +640,8 @@ function showToast(msg){
 }
 
 render();
+renderBankBtn();
+checkBankStatus();
 </script>
 </body>
 </html>

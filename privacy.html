@@ -88,30 +88,31 @@
   <div class="section">
     <h2>Overview</h2>
     <div class="highlight-box">
-      <p>Everything you enter into Spend Radar — your spending limit, cycle day, and transactions — is stored only in your own browser. Nothing is sent to a server, except when you choose to use the screenshot-import feature, which sends the image you paste to Anthropic's API to read the transaction rows.</p>
+      <p>Your spending limit, cycle day, and transactions are stored in your own browser. If you use the optional "Connect bank" feature, transactions are pulled from your bank through Plaid, a bank-data provider, via a small server component; your bank login credentials are entered directly into Plaid's own secure interface and are never seen or stored by Spend Radar or Japps.ai. The screenshot-import feature separately sends a pasted image to Anthropic's API to read transaction rows.</p>
     </div>
     <p>This Privacy Policy describes how Spend Radar (the "app"), developed by Japps.ai, handles information when you use it.</p>
   </div>
 
   <div class="section">
     <h2>Information We Collect / Do Not Collect</h2>
-    <p>Spend Radar has no backend server and no user accounts. We do not collect, receive, or have access to any of the following:</p>
+    <p>Spend Radar has no user accounts and does not sell or share data with advertisers. Depending on which import method you use:</p>
     <ul>
-      <li>Your cardholder name, spending limit, or cycle-reset day</li>
-      <li>Any transactions you import, whether by CSV, pasted text, or screenshot</li>
-      <li>Any optional Anthropic API key you choose to enter in Settings</li>
+      <li>Your cardholder name, spending limit, and cycle-reset day are stored only in your browser</li>
+      <li>Transactions imported by CSV, pasted text, or screenshot are stored only in your browser</li>
+      <li>Any optional Anthropic API key you enter in Settings is stored only in your browser and sent only to Anthropic's API</li>
+      <li>If you use "Connect bank," your bank access token is held server-side (never in the browser) so it can be used to fetch new transactions; the transactions themselves are then sent to your browser and stored there, the same as any other import method</li>
     </ul>
-    <p>All of this data lives entirely in your browser, on your device.</p>
   </div>
 
   <div class="section">
     <h2>Local Storage / Backend Storage</h2>
-    <p>Spend Radar uses your browser's local storage to save your settings and transaction history between visits. This data never leaves your device and is never transmitted to Japps.ai or any server we operate. Clearing your browser data, or using the app's own "Clear all" control, will permanently delete it. There is no backend database and no cloud sync.</p>
+    <p>Spend Radar uses your browser's local storage to save your settings and transaction history between visits. Clearing your browser data, or using the app's own "Clear all" control, will permanently delete it locally. If you connect a bank account, a server-side data store (hosted on Vercel) holds only the bank access token issued by Plaid — never your bank username or password — until you disconnect it. This deployment is intended for personal/family use and is protected by a shared app password; anyone with that password and the deployed URL can trigger a transaction sync.</p>
   </div>
 
   <div class="section">
     <h2>Third-Party Services</h2>
-    <p>The optional "paste a screenshot" import feature sends the pasted image directly from your browser to Anthropic's API to extract transaction rows as text. This is the only feature that transmits any data outside your browser, and it only runs when you actively use it. If you use CSV upload or paste-text import instead, no data ever leaves your device. If you choose to enter your own Anthropic API key in Settings so the feature works once this app is hosted on its own site, that key is stored only in your browser's local storage and is sent solely to Anthropic's API, never to Japps.ai.</p>
+    <p>The optional "paste a screenshot" import feature sends the pasted image directly from your browser to Anthropic's API to extract transaction rows as text. If you use CSV upload or paste-text import instead, no data leaves your device.</p>
+    <p>The optional "Connect bank" feature uses <a href="https://plaid.com/legal/" target="_blank" rel="noopener">Plaid</a> to link your bank account. When you click "Connect bank," Plaid's own interface opens and handles authentication with your bank directly — your bank credentials go to Plaid and your bank, never to Spend Radar or Japps.ai. Plaid returns an access token that Spend Radar's server uses solely to fetch transaction data on your behalf. Review Plaid's own privacy policy for how they handle data during that connection.</p>
   </div>
 
   <div class="section">
