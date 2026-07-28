@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Spend Radar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F6F8FB;
+    --card:#FFFFFF;
+    --teal:#1F6F6B;
+    --teal-dark:#164F4C;
+    --teal-light:#E4F1F0;
+    --ink:#16233D;
+    --ink-soft:#5B6B85;
+    --border:#E2E8F0;
+    --amber:#C97A22;
+    --red:#C7473F;
+    --green:#1F6F6B;
+    --radius:14px;
+    --display:'Space Grotesk',sans-serif;
+    --body:'Inter',sans-serif;
+    --mono:'IBM Plex Mono',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.5;padding-bottom:60px;}
+  a{color:inherit;}
+
+  nav{display:flex;align-items:center;justify-content:space-between;padding:18px 32px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;}
+  .nav-left{display:flex;align-items:center;gap:14px;}
+  .nav-back{font-family:var(--mono);font-size:12px;color:var(--ink-soft);text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:8px;transition:.15s;}
+  .nav-back:hover{border-color:var(--teal);color:var(--teal);}
+  .brand{display:flex;align-items:center;gap:8px;}
+  .brand-icon{width:30px;height:30px;border-radius:8px;background:var(--teal);display:flex;align-items:center;justify-content:center;color:white;font-size:15px;}
+  .brand-name{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-0.3px;}
+  .settings-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-family:var(--body);font-size:13px;font-weight:500;color:var(--ink-soft);cursor:pointer;transition:.15s;}
+  .settings-btn:hover{border-color:var(--teal);color:var(--teal);}
+
+  .wrap{max-width:960px;margin:0 auto;padding:36px 24px 0;}
+
+  .top-grid{display:grid;grid-template-columns:280px 1fr;gap:24px;margin-bottom:24px;}
+  @media (max-width:760px){.top-grid{grid-template-columns:1fr;}}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;}
+
+  .gauge-card{display:flex;flex-direction:column;align-items:center;text-align:center;}
+  .gauge-name{font-family:var(--display);font-weight:600;font-size:15px;color:var(--ink-soft);margin-bottom:14px;}
+  .gauge-figure{position:relative;width:200px;height:200px;}
+  .gauge-figure svg{width:100%;height:100%;transform:rotate(-90deg);}
+  .gauge-track{fill:none;stroke:#EEF2F6;stroke-width:14;}
+  .gauge-fill{fill:none;stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset .5s ease, stroke .3s ease;}
+  .gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .gauge-remaining{font-family:var(--mono);font-size:28px;font-weight:600;letter-spacing:-0.5px;}
+  .gauge-label{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:1px;margin-top:4px;}
+  .gauge-sub{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:14px;}
+  .gauge-reset{font-size:11px;color:var(--ink-soft);margin-top:6px;}
+
+  .summary-card h2{font-family:var(--display);font-size:16px;font-weight:600;margin-bottom:16px;}
+  .cat-row{display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:12px;margin-bottom:12px;}
+  .cat-name{font-size:13px;font-weight:500;color:var(--ink-soft);}
+  .cat-bar-track{height:8px;background:#EEF2F6;border-radius:5px;overflow:hidden;}
+  .cat-bar-fill{height:100%;background:var(--teal);border-radius:5px;}
+  .cat-amt{font-family:var(--mono);font-size:12.5px;text-align:right;}
+
+  .actions-row{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
+  .action-btn{flex:1;min-width:150px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:var(--body);font-weight:500;font-size:13.5px;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;transition:.15s;}
+  .action-btn:hover{border-color:var(--teal);background:var(--teal-light);}
+  .action-btn.primary{background:var(--teal);color:white;border-color:var(--teal);}
+  .action-btn.primary:hover{background:var(--teal-dark);}
+
+  .panel{display:none;margin-bottom:24px;}
+  .panel.open{display:block;}
+  .panel h3{font-family:var(--display);font-size:15px;font-weight:600;margin-bottom:14px;}
+  .panel textarea{width:100%;min-height:140px;border:1px solid var(--border);border-radius:10px;padding:12px;font-family:var(--mono);font-size:12.5px;resize:vertical;}
+  .panel input[type=file]{font-size:13px;}
+  .panel .hint{font-size:12px;color:var(--ink-soft);margin-top:8px;}
+  .panel-buttons{display:flex;gap:10px;margin-top:14px;}
+  .btn-sm{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:white;font-size:13px;font-weight:500;cursor:pointer;}
+  .btn-sm.primary{background:var(--teal);color:white;border-color:var(--teal);}
+  .btn-sm:hover{opacity:.9;}
+  .dropzone{border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;color:var(--ink-soft);font-size:13px;cursor:text;}
+  .dropzone.drag{border-color:var(--teal);background:var(--teal-light);}
+  .dropzone img{max-width:100%;max-height:180px;border-radius:8px;margin-top:10px;}
+
+  .review-list{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:14px;}
+  .review-row{display:grid;grid-template-columns:90px 1fr 90px 90px;gap:10px;padding:10px 14px;font-size:13px;align-items:center;border-bottom:1px solid var(--border);}
+  .review-row:last-child{border-bottom:none;}
+  .review-row.dup{opacity:.5;}
+  .review-row .tag{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:5px;background:var(--teal-light);color:var(--teal-dark);justify-self:start;}
+  .review-row .tag.dup-tag{background:#F2E7DC;color:var(--amber);}
+  .review-row .amt{font-family:var(--mono);text-align:right;}
+
+  .tx-card h2{font-family:var(--display);font-size:16px;font-weight:600;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
+  .tx-card h2 button{font-family:var(--body);font-size:12.5px;font-weight:500;color:var(--teal);background:none;border:none;cursor:pointer;}
+  .tx-row{display:grid;grid-template-columns:80px 1fr 100px 90px 30px;gap:10px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .tx-row:last-child{border-bottom:none;}
+  .tx-date{font-family:var(--mono);font-size:12px;color:var(--ink-soft);}
+  .tx-cat{font-size:11px;font-family:var(--mono);color:var(--teal-dark);background:var(--teal-light);padding:2px 8px;border-radius:6px;justify-self:start;}
+  .tx-amt{font-family:var(--mono);text-align:right;}
+  .tx-del{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:14px;}
+  .tx-del:hover{color:var(--red);}
+  .empty-state{text-align:center;padding:40px 20px;color:var(--ink-soft);font-size:13.5px;}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(22,35,61,0.45);z-index:50;align-items:center;justify-content:center;padding:20px;}
+  .modal-overlay.open{display:flex;}
+  .modal{background:white;border-radius:16px;padding:28px;max-width:420px;width:100%;}
+  .modal h3{font-family:var(--display);font-size:17px;font-weight:600;margin-bottom:18px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12.5px;font-weight:500;color:var(--ink-soft);margin-bottom:6px;}
+  .field input{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--body);font-size:14px;}
+  .modal-buttons{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:white;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-left">
+    <a href="https://japps.ai" class="nav-back">← Japps.ai</a>
+    <div class="brand"><div class="brand-icon">◎</div><div class="brand-name">Spend Radar</div></div>
+  </div>
+  <button class="settings-btn" onclick="openSettings()">Settings</button>
+</nav>
+
+<div class="wrap">
+
+  <div class="top-grid">
+    <div class="card gauge-card">
+      <div class="gauge-name" id="gaugeName">Spending</div>
+      <div class="gauge-figure">
+        <svg viewBox="0 0 200 200">
+          <circle class="gauge-track" cx="100" cy="100" r="82"/>
+          <circle class="gauge-fill" id="gaugeFill" cx="100" cy="100" r="82"/>
+        </svg>
+        <div class="gauge-center">
+          <div class="gauge-remaining" id="gaugeRemaining">$0</div>
+          <div class="gauge-label">Remaining</div>
+        </div>
+      </div>
+      <div class="gauge-sub" id="gaugeSub">$0 of $0 spent</div>
+      <div class="gauge-reset" id="gaugeReset">Cycle resets on the —</div>
+    </div>
+
+    <div class="card summary-card">
+      <h2>By category</h2>
+      <div id="categoryBreakdown"></div>
+    </div>
+  </div>
+
+  <div class="actions-row">
+    <button class="action-btn" onclick="togglePanel('csvPanel')">📄 Upload CSV</button>
+    <button class="action-btn" onclick="togglePanel('pastePanel')">📋 Paste transactions</button>
+    <button class="action-btn" onclick="togglePanel('shotPanel')">🖼️ Paste screenshot</button>
+    <button class="action-btn primary" onclick="copyReport()">Copy report</button>
+  </div>
+
+  <div class="panel card" id="csvPanel">
+    <h3>Upload CSV</h3>
+    <input type="file" id="csvInput" accept=".csv" onchange="handleCsvFile(event)"/>
+    <div class="hint">Standard bank export — a Date column, a Description column, and a Debit or Amount column. Header names are auto-detected.</div>
+  </div>
+
+  <div class="panel card" id="pastePanel">
+    <h3>Paste transactions</h3>
+    <textarea id="pasteInput" placeholder="Paste raw text copied from your bank's activity page — works even if it runs together with no line breaks."></textarea>
+    <div class="panel-buttons">
+      <button class="btn-sm primary" onclick="handlePasteText()">Parse</button>
+      <button class="btn-sm" onclick="togglePanel('pastePanel')">Cancel</button>
+    </div>
+  </div>
+
+  <div class="panel card" id="shotPanel">
+    <h3>Paste a screenshot</h3>
+    <div class="dropzone" id="shotDropzone" tabindex="0">Click here, then paste (Ctrl/Cmd+V) a screenshot of your transaction list.</div>
+    <div class="hint">Sends the image to Claude to read out the transaction rows. Needs an Anthropic API key set in Settings when this app is running on its own site (works without one inside a Claude preview).</div>
+    <div class="panel-buttons">
+      <button class="btn-sm" onclick="togglePanel('shotPanel')">Cancel</button>
+    </div>
+  </div>
+
+  <div class="panel card" id="reviewPanel">
+    <h3>Review new transactions</h3>
+    <div class="review-list" id="reviewList"></div>
+    <div class="panel-buttons">
+      <button class="btn-sm primary" onclick="confirmReview()">Add new transactions</button>
+      <button class="btn-sm" onclick="cancelReview()">Cancel</button>
+    </div>
+  </div>
+
+  <div class="card tx-card">
+    <h2>Transactions <button onclick="clearAll()">Clear all</button></h2>
+    <div id="txList"></div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h3>Settings</h3>
+    <div class="field">
+      <label>Cardholder name</label>
+      <input type="text" id="setName" placeholder="e.g. David">
+    </div>
+    <div class="field">
+      <label>Monthly spending limit</label>
+      <input type="number" id="setLimit" placeholder="e.g. 400">
+    </div>
+    <div class="field">
+      <label>Cycle reset day (day of month)</label>
+      <input type="number" id="setCycle" min="1" max="31" placeholder="e.g. 19">
+    </div>
+    <div class="field">
+      <label>Anthropic API key (optional — only needed for screenshot import once deployed on your own site)</label>
+      <input type="password" id="setApiKey" placeholder="sk-ant-...">
+    </div>
+    <div class="modal-buttons">
+      <button class="btn-sm" onclick="closeSettings()">Cancel</button>
+      <button class="btn-sm primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORE_KEY = 'spendradar_data_v1';
+let state = load();
+let pendingReview = [];
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return { name:'', limit:400, cycleDay:19, apiKey:'', transactions:[] };
+}
+function save(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+function openSettings(){
+  document.getElementById('setName').value = state.name || '';
+  document.getElementById('setLimit').value = state.limit || '';
+  document.getElementById('setCycle').value = state.cycleDay || '';
+  document.getElementById('setApiKey').value = state.apiKey || '';
+  document.getElementById('settingsModal').classList.add('open');
+}
+function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
+function saveSettings(){
+  state.name = document.getElementById('setName').value.trim();
+  state.limit = parseFloat(document.getElementById('setLimit').value) || 0;
+  state.cycleDay = parseInt(document.getElementById('setCycle').value) || 19;
+  state.apiKey = document.getElementById('setApiKey').value.trim();
+  save();
+  closeSettings();
+  render();
+  showToast('Settings saved');
+}
+
+function togglePanel(id){
+  ['csvPanel','pastePanel','shotPanel','reviewPanel'].forEach(p=>{
+    if(p!==id) document.getElementById(p).classList.remove('open');
+  });
+  document.getElementById(id).classList.toggle('open');
+}
+
+// ---------- category guessing ----------
+const CATEGORY_RULES = [
+  ['Gas', /shell|exxon|chevron|mobil|bp |sunoco|marathon|speedway|circle k|gas station|arco|valero/i],
+  ['Food', /restaurant|mcdonald|chipotle|starbucks|doordash|uber eats|grubhub|pizza|taco|cafe|coffee|chick-fil-a|wendy|subway|panera|food/i],
+  ['Shopping', /amazon|walmart|target|best buy|store|mall|ebay|shein|nike|clothing/i],
+  ['Entertainment', /netflix|spotify|steam|movie|cinema|hulu|disney|xbox|playstation|ticket/i],
+];
+function guessCategory(desc){
+  for(const [cat, re] of CATEGORY_RULES){ if(re.test(desc)) return cat; }
+  return 'Other';
+}
+
+// ---------- date helpers ----------
+function toISO(d){
+  if(!(d instanceof Date) || isNaN(d)) return null;
+  return d.toISOString().slice(0,10);
+}
+const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function parseShortDate(str){
+  const m = str.match(/([A-Za-z]{3})\s*(\d{1,2})/);
+  if(!m) return null;
+  const mon = MONTHS[m[1].toLowerCase()];
+  if(mon===undefined) return null;
+  const day = parseInt(m[2]);
+  const now = new Date();
+  let year = now.getFullYear();
+  const d = new Date(year, mon, day);
+  if(d > now) d.setFullYear(year-1);
+  return toISO(d);
+}
+
+// ---------- CSV import ----------
+function handleCsvFile(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => parseCsv(e.target.result);
+  reader.readAsText(file);
+}
+function parseCsv(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.trim().length);
+  if(lines.length < 2) return showToast('CSV looks empty');
+  const header = lines[0].split(',').map(h=>h.trim().toLowerCase());
+  const dateIdx = header.findIndex(h=>h.includes('date'));
+  const descIdx = header.findIndex(h=>h.includes('description')||h.includes('merchant')||h.includes('payee'));
+  const amtIdx = header.findIndex(h=>h.includes('debit')||h.includes('amount')||h.includes('charge'));
+  if(dateIdx<0 || amtIdx<0) return showToast('Could not find date/amount columns');
+  const parsed = [];
+  for(let i=1;i<lines.length;i++){
+    const cols = lines[i].split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+    const rawDate = cols[dateIdx];
+    const desc = descIdx>=0 ? cols[descIdx] : 'Unknown';
+    let amt = parseFloat((cols[amtIdx]||'').replace(/[^0-9.-]/g,''));
+    if(isNaN(amt) || amt===0) continue;
+    amt = Math.abs(amt);
+    const d = new Date(rawDate);
+    const iso = toISO(d) || parseShortDate(rawDate);
+    if(!iso) continue;
+    parsed.push({date:iso, merchant:desc, amount:amt, category:guessCategory(desc)});
+  }
+  if(!parsed.length) return showToast('No valid rows found');
+  startReview(parsed);
+  togglePanel('csvPanel');
+}
+
+// ---------- paste text import ----------
+function handlePasteText(){
+  const blob = document.getElementById('pasteInput').value;
+  if(!blob.trim()) return showToast('Paste some text first');
+  const re = /([A-Za-z]{3}\s?\d{1,2})(.*?)(-?\$[\d,]+\.\d{2})/g;
+  let match, parsed = [];
+  while((match = re.exec(blob)) !== null){
+    const iso = parseShortDate(match[1]);
+    let merchant = match[2].replace(/[\.\-_#\d\$,]{3,}/g,' ').replace(/\s+/g,' ').trim();
+    if(!merchant) merchant = 'Unknown';
+    const amount = Math.abs(parseFloat(match[3].replace(/[^0-9.-]/g,'')));
+    if(!iso || isNaN(amount) || amount===0) continue;
+    parsed.push({date:iso, merchant, amount, category:guessCategory(merchant)});
+  }
+  if(!parsed.length) return showToast('Could not find any transactions in that text');
+  startReview(parsed);
+  document.getElementById('pasteInput').value = '';
+  togglePanel('pastePanel');
+}
+
+// ---------- screenshot import ----------
+const shotZone = document.getElementById('shotDropzone');
+shotZone.addEventListener('paste', async (e)=>{
+  const items = e.clipboardData.items;
+  for(const item of items){
+    if(item.type.startsWith('image/')){
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = async (ev)=>{
+        shotZone.innerHTML = 'Reading transactions from image…';
+        const base64 = ev.target.result.split(',')[1];
+        try{
+          const parsed = await extractFromImage(base64, item.type);
+          if(parsed && parsed.length){
+            startReview(parsed);
+            togglePanel('shotPanel');
+          } else {
+            showToast('No transactions found in that image');
+          }
+        }catch(err){
+          showToast('Screenshot import failed — try CSV or paste instead');
+          console.error(err);
+        }
+        shotZone.innerHTML = 'Click here, then paste (Ctrl/Cmd+V) a screenshot of your transaction list.';
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+});
+
+async function extractFromImage(base64, mediaType){
+  const headers = { "Content-Type": "application/json" };
+  if(state.apiKey){
+    headers["x-api-key"] = state.apiKey;
+    headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
+  }
+  const body = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 1000,
+    messages: [{
+      role: "user",
+      content: [
+        { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+        { type: "text", text: "Read the transaction rows in this bank activity screenshot. Return ONLY a JSON array, no other text, of objects like {\"date\":\"YYYY-MM-DD\",\"merchant\":\"...\",\"amount\":12.34}. Use the current year if no year is shown. Only include actual purchase transactions (skip payments/credits)." }
+      ]
+    }]
+  };
+  const res = await fetch("https://api.anthropic.com/v1/messages", { method:"POST", headers, body: JSON.stringify(body) });
+  const data = await res.json();
+  const textBlocks = (data.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("\n");
+  const clean = textBlocks.replace(/```json|```/g,'').trim();
+  let rows;
+  try{ rows = JSON.parse(clean); }catch(e){ return []; }
+  return rows
+    .filter(r=>r.date && r.amount)
+    .map(r=>({date:r.date, merchant:r.merchant||'Unknown', amount:Math.abs(parseFloat(r.amount)), category:guessCategory(r.merchant||'')}));
+}
+
+// ---------- review / dedupe ----------
+function isDuplicate(tx){
+  return state.transactions.some(t => t.date===tx.date && t.merchant===tx.merchant && Math.abs(t.amount-tx.amount)<0.005);
+}
+function startReview(parsed){
+  pendingReview = parsed.map(tx => ({...tx, dup: isDuplicate(tx)}));
+  const list = document.getElementById('reviewList');
+  list.innerHTML = pendingReview.map(tx => `
+    <div class="review-row ${tx.dup?'dup':''}">
+      <span class="tx-date">${tx.date}</span>
+      <span>${escapeHtml(tx.merchant)}</span>
+      <span class="${tx.dup?'tag dup-tag':'tag'}">${tx.dup?'duplicate':'new'}</span>
+      <span class="amt">$${tx.amount.toFixed(2)}</span>
+    </div>
+  `).join('');
+  ['csvPanel','pastePanel','shotPanel'].forEach(p=>document.getElementById(p).classList.remove('open'));
+  document.getElementById('reviewPanel').classList.add('open');
+}
+function confirmReview(){
+  const newOnes = pendingReview.filter(tx=>!tx.dup);
+  state.transactions.push(...newOnes.map(({dup, ...rest})=>rest));
+  state.transactions.sort((a,b)=> a.date < b.date ? 1 : -1);
+  save();
+  render();
+  document.getElementById('reviewPanel').classList.remove('open');
+  showToast(`Added ${newOnes.length} transaction${newOnes.length===1?'':'s'}${pendingReview.length-newOnes.length ? ', skipped '+(pendingReview.length-newOnes.length)+' duplicate(s)' : ''}`);
+  pendingReview = [];
+}
+function cancelReview(){
+  document.getElementById('reviewPanel').classList.remove('open');
+  pendingReview = [];
+}
+
+// ---------- rendering ----------
+function currentCycleSpend(){
+  const now = new Date();
+  const cycleDay = state.cycleDay || 19;
+  let start = new Date(now.getFullYear(), now.getMonth(), cycleDay);
+  if(now.getDate() < cycleDay) start = new Date(now.getFullYear(), now.getMonth()-1, cycleDay);
+  const startISO = toISO(start);
+  return state.transactions.filter(t => t.date >= startISO);
+}
+
+function render(){
+  document.getElementById('gaugeName').textContent = state.name ? `${state.name}'s spending` : 'Spending';
+  document.getElementById('gaugeReset').textContent = `Cycle resets on the ${ordinal(state.cycleDay||19)}`;
+
+  const cycleTx = currentCycleSpend();
+  const spent = cycleTx.reduce((s,t)=>s+t.amount,0);
+  const limit = state.limit || 0;
+  const remaining = Math.max(limit - spent, 0);
+  const pct = limit>0 ? Math.min(spent/limit,1) : 0;
+
+  const r = 82, circ = 2*Math.PI*r;
+  const fill = document.getElementById('gaugeFill');
+  fill.setAttribute('stroke-dasharray', circ);
+  fill.setAttribute('stroke-dashoffset', circ*(1-pct));
+  fill.style.stroke = pct<0.7 ? 'var(--green)' : pct<0.9 ? 'var(--amber)' : 'var(--red)';
+
+  document.getElementById('gaugeRemaining').textContent = `$${remaining.toFixed(2)}`;
+  document.getElementById('gaugeSub').textContent = `$${spent.toFixed(2)} of $${limit.toFixed(2)} spent`;
+
+  const cats = {};
+  cycleTx.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
+  const maxCat = Math.max(...Object.values(cats), 1);
+  const order = ['Gas','Food','Shopping','Entertainment','Other'];
+  const catDiv = document.getElementById('categoryBreakdown');
+  const present = order.filter(c=>cats[c]);
+  catDiv.innerHTML = present.length ? present.map(c=>`
+    <div class="cat-row">
+      <div class="cat-name">${c}</div>
+      <div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(cats[c]/maxCat*100).toFixed(0)}%"></div></div>
+      <div class="cat-amt">$${cats[c].toFixed(2)}</div>
+    </div>
+  `).join('') : '<div class="empty-state">No transactions this cycle yet.</div>';
+
+  const txDiv = document.getElementById('txList');
+  txDiv.innerHTML = state.transactions.length ? state.transactions.map((t,i)=>`
+    <div class="tx-row">
+      <div class="tx-date">${t.date}</div>
+      <div>${escapeHtml(t.merchant)}</div>
+      <div class="tx-cat">${t.category}</div>
+      <div class="tx-amt">$${t.amount.toFixed(2)}</div>
+      <button class="tx-del" onclick="deleteTx(${i})" title="Delete">✕</button>
+    </div>
+  `).join('') : '<div class="empty-state">No transactions yet — import a CSV, paste text, or paste a screenshot above.</div>';
+}
+
+function deleteTx(i){
+  state.transactions.splice(i,1);
+  save();
+  render();
+}
+function clearAll(){
+  if(!confirm('Remove all transactions? This cannot be undone.')) return;
+  state.transactions = [];
+  save();
+  render();
+}
+
+function ordinal(n){
+  n = parseInt(n) || 19;
+  const s=['th','st','nd','rd'], v=n%100;
+  return n+(s[(v-20)%10]||s[v]||s[0]);
+}
+function escapeHtml(str){
+  return (str||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- copy report ----------
+function copyReport(){
+  const cycleTx = currentCycleSpend();
+  const spent = cycleTx.reduce((s,t)=>s+t.amount,0);
+  const limit = state.limit || 0;
+  const remaining = Math.max(limit-spent,0);
+  const cats = {};
+  cycleTx.forEach(t=>{ cats[t.category]=(cats[t.category]||0)+t.amount; });
+  let lines = [];
+  lines.push(`Spend Radar${state.name ? ' — '+state.name : ''}`);
+  lines.push(`Cycle resets on the ${ordinal(state.cycleDay||19)}`);
+  lines.push('');
+  lines.push(`Spent: $${spent.toFixed(2)} of $${limit.toFixed(2)}`);
+  lines.push(`Remaining: $${remaining.toFixed(2)}`);
+  lines.push('');
+  lines.push('By category:');
+  Object.entries(cats).forEach(([c,a])=> lines.push(`  ${c}: $${a.toFixed(2)}`));
+  lines.push('');
+  lines.push('Transactions this cycle:');
+  cycleTx.forEach(t=> lines.push(`  ${t.date}  ${t.merchant}  $${t.amount.toFixed(2)}`));
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(()=>showToast('Report copied to clipboard')).catch(()=>{
+    prompt('Copy this report:', text);
+  });
+}
+
+// ---------- toast ----------
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+render();
+</script>
+</body>
+</html>
