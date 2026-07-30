@@ -88,31 +88,32 @@
   <div class="section">
     <h2>Overview</h2>
     <div class="highlight-box">
-      <p>Your spending limit, cycle day, and transactions are stored in your own browser. If you use the optional "Connect bank" feature, transactions are pulled from your bank through Plaid, a bank-data provider, via a small server component; your bank login credentials are entered directly into Plaid's own secure interface and are never seen or stored by Spend Radar or Japps.ai. The screenshot-import feature separately sends a pasted image to Anthropic's API to read transaction rows.</p>
+      <p>Your settings (spending limit, cycle day, cardholder name) and any transactions you import by CSV, pasted text, or screenshot are stored only in your own browser. If you choose to use the optional "Connect bank" feature, your bank is linked through Plaid, and your bank's transaction data is synced to a small backend that this app runs on Vercel so it can be pulled into the app automatically. Screenshot import sends the pasted image to Anthropic's API to read the transaction rows.</p>
     </div>
     <p>This Privacy Policy describes how Spend Radar (the "app"), developed by Japps.ai, handles information when you use it.</p>
   </div>
 
   <div class="section">
     <h2>Information We Collect / Do Not Collect</h2>
-    <p>Spend Radar has no user accounts and does not sell or share data with advertisers. Depending on which import method you use:</p>
+    <p>Spend Radar has no user accounts. Your cardholder name, spending limit, cycle-reset day, and any transactions you import by CSV, pasted text, or screenshot are stored only in your browser — we never collect or have access to any of it.</p>
+    <p>If you use the optional "Connect bank" feature, the following is handled differently:</p>
     <ul>
-      <li>Your cardholder name, spending limit, and cycle-reset day are stored only in your browser</li>
-      <li>Transactions imported by CSV, pasted text, or screenshot are stored only in your browser</li>
-      <li>Any optional Anthropic API key you enter in Settings is stored only in your browser and sent only to Anthropic's API</li>
-      <li>If you use "Connect bank," your bank access token is held server-side (never in the browser) so it can be used to fetch new transactions; the transactions themselves are then sent to your browser and stored there, the same as any other import method</li>
+      <li>A bank-linking token and, after you log in through your bank's own screen, a Plaid access token are stored server-side (not in your browser), since that token is a live credential that has to persist between visits</li>
+      <li>Transaction data returned by Plaid (date, merchant name, amount, account identifier) passes through this server-side component so it can be synced into the app</li>
     </ul>
+    <p>Your bank login credentials are entered directly into your bank's or Plaid's own screen and are never seen, transmitted to, or stored by Spend Radar or Japps.ai.</p>
   </div>
 
   <div class="section">
     <h2>Local Storage / Backend Storage</h2>
-    <p>Spend Radar uses your browser's local storage to save your settings and transaction history between visits. Clearing your browser data, or using the app's own "Clear all" control, will permanently delete it locally. If you connect a bank account, a server-side data store (hosted on Vercel) holds only the bank access token issued by Plaid — never your bank username or password — until you disconnect it. This deployment is intended for personal/family use and is protected by a shared app password; anyone with that password and the deployed URL can trigger a transaction sync.</p>
+    <p>Spend Radar uses your browser's local storage to save your settings and manually-imported transaction history between visits. This data never leaves your device unless you use the bank-connect feature. Clearing your browser data, or using the app's own "Clear all" control, will permanently delete it.</p>
+    <p>If you connect a bank account, a small backend (hosted on Vercel, using Plaid) stores the access token needed to keep syncing your transactions, along with a sync position marker. This is the only data Spend Radar keeps outside your own browser, and it exists solely to support the bank-sync feature you opted into.</p>
   </div>
 
   <div class="section">
     <h2>Third-Party Services</h2>
-    <p>The optional "paste a screenshot" import feature sends the pasted image directly from your browser to Anthropic's API to extract transaction rows as text. If you use CSV upload or paste-text import instead, no data leaves your device.</p>
-    <p>The optional "Connect bank" feature uses <a href="https://plaid.com/legal/" target="_blank" rel="noopener">Plaid</a> to link your bank account. When you click "Connect bank," Plaid's own interface opens and handles authentication with your bank directly — your bank credentials go to Plaid and your bank, never to Spend Radar or Japps.ai. Plaid returns an access token that Spend Radar's server uses solely to fetch transaction data on your behalf. Review Plaid's own privacy policy for how they handle data during that connection.</p>
+    <p>The optional "paste a screenshot" import feature sends the pasted image directly from your browser to Anthropic's API to extract transaction rows as text. If you use CSV upload or paste-text import instead, no data ever leaves your device. If you choose to enter your own Anthropic API key in Settings so the feature works once this app is hosted on its own site, that key is stored only in your browser's local storage and is sent solely to Anthropic's API, never to Japps.ai.</p>
+    <p>The optional "Connect bank" feature uses <a href="https://plaid.com/legal/" target="_blank">Plaid</a> to link your bank account and retrieve transactions. Your bank credentials are entered on your bank's or Plaid's own screen and are never visible to Spend Radar. Plaid's own privacy policy governs how they handle that linking process; the transaction data Plaid returns is stored only by the small backend this app runs to support the sync feature, as described above.</p>
   </div>
 
   <div class="section">

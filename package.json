@@ -2,8 +2,9 @@
   "name": "spend-radar",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
+  "description": "Spend Radar — card spending tracker with optional live bank sync via Plaid",
   "dependencies": {
-    "@vercel/kv": "^2.0.0"
+    "plaid": "latest",
+    "@vercel/kv": "latest"
   }
 }

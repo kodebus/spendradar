@@ -153,12 +153,13 @@
   </div>
 
   <div class="actions-row">
-    <button class="action-btn" id="bankBtn" onclick="bankButtonClick()">🏦 Connect bank</button>
+    <button class="action-btn" id="connectBankBtn" onclick="connectBank()">🏦 Connect bank</button>
     <button class="action-btn" onclick="togglePanel('csvPanel')">📄 Upload CSV</button>
     <button class="action-btn" onclick="togglePanel('pastePanel')">📋 Paste transactions</button>
     <button class="action-btn" onclick="togglePanel('shotPanel')">🖼️ Paste screenshot</button>
     <button class="action-btn primary" onclick="copyReport()">Copy report</button>
   </div>
+  <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:-14px 0 24px;"></div>
 
   <div class="panel card" id="csvPanel">
     <h3>Upload CSV</h3>
@@ -219,10 +220,6 @@
       <label>Anthropic API key (optional — only needed for screenshot import once deployed on your own site)</label>
       <input type="password" id="setApiKey" placeholder="sk-ant-...">
     </div>
-    <div class="field">
-      <label>App password (required for Connect bank — must match the APP_SECRET set on the server)</label>
-      <input type="password" id="setAppSecret" placeholder="shared password for this deployment">
-    </div>
     <div class="modal-buttons">
       <button class="btn-sm" onclick="closeSettings()">Cancel</button>
       <button class="btn-sm primary" onclick="saveSettings()">Save</button>
@@ -242,7 +239,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { name:'', limit:400, cycleDay:19, apiKey:'', appSecret:'', bankConnected:false, transactions:[] };
+  return { name:'', limit:400, cycleDay:19, apiKey:'', transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -253,7 +250,6 @@ function openSettings(){
   document.getElementById('setLimit').value = state.limit || '';
   document.getElementById('setCycle').value = state.cycleDay || '';
   document.getElementById('setApiKey').value = state.apiKey || '';
-  document.getElementById('setAppSecret').value = state.appSecret || '';
   document.getElementById('settingsModal').classList.add('open');
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
@@ -262,7 +258,6 @@ function saveSettings(){
   state.limit = parseFloat(document.getElementById('setLimit').value) || 0;
   state.cycleDay = parseInt(document.getElementById('setCycle').value) || 19;
   state.apiKey = document.getElementById('setApiKey').value.trim();
-  state.appSecret = document.getElementById('setAppSecret').value.trim();
   save();
   closeSettings();
   render();
@@ -420,78 +415,82 @@ async function extractFromImage(base64, mediaType){
     .map(r=>({date:r.date, merchant:r.merchant||'Unknown', amount:Math.abs(parseFloat(r.amount)), category:guessCategory(r.merchant||'')}));
 }
 
-// ---------- bank connect (Plaid) ----------
-async function apiCall(path, body, silent){
-  try{
-    const res = await fetch(path, {
-      method: body===undefined ? 'GET' : 'POST',
-      headers: Object.assign({ 'x-app-secret': state.appSecret||'' }, body!==undefined ? {'Content-Type':'application/json'} : {}),
-      body: body!==undefined ? JSON.stringify(body) : undefined
-    });
-    if(res.status===401){ if(!silent) showToast('Wrong app password — set it in Settings'); return null; }
-    return await res.json();
-  }catch(e){
-    console.error(e);
-    if(!silent) showToast('Could not reach the server — is this deployed with the backend running?');
-    return null;
-  }
-}
-
-async function checkBankStatus(){
-  if(!state.appSecret) return;
-  const data = await apiCall('/api/bank-status', undefined, true);
-  state.bankConnected = !!(data && data.connected);
-  renderBankBtn();
-}
-
-function renderBankBtn(){
-  const btn = document.getElementById('bankBtn');
-  if(!btn) return;
-  btn.textContent = state.bankConnected ? '🔄 Sync bank transactions' : '🏦 Connect bank';
-}
-
-function bankButtonClick(){
-  if(state.bankConnected) return syncBankTransactions();
-  return connectBank();
+// ---------- bank connection (Plaid) ----------
+function bankStatusEl(){ return document.getElementById('bankStatus'); }
+function setBankStatus(msg){
+  const el = bankStatusEl();
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
 }
 
 async function connectBank(){
-  if(!state.appSecret) return showToast('Set the app password in Settings first');
-  showToast('Opening bank connection…');
-  const linkRes = await apiCall('/api/create-link-token', {});
-  if(!linkRes || !linkRes.link_token) return showToast('Could not start bank connection');
-  const handler = Plaid.create({
-    token: linkRes.link_token,
-    onSuccess: async (public_token) => {
-      showToast('Linking account…');
-      const exch = await apiCall('/api/exchange-public-token', { public_token });
-      if(exch && exch.connected){
-        state.bankConnected = true;
-        renderBankBtn();
-        showToast('Bank connected — syncing transactions…');
-        await syncBankTransactions();
-      } else {
-        showToast('Bank link failed to save');
-      }
-    },
-    onExit: (err) => { if(err) console.error(err); }
-  });
-  handler.open();
+  const btn = document.getElementById('connectBankBtn');
+  btn.disabled = true;
+  setBankStatus('Connecting to your bank…');
+  try{
+    const res = await fetch('/api/create-link-token', { method:'POST' });
+    if(!res.ok) throw new Error('link token request failed');
+    const { link_token } = await res.json();
+
+    const handler = Plaid.create({
+      token: link_token,
+      onSuccess: async (public_token) => {
+        setBankStatus('Linking account…');
+        try{
+          const exchangeRes = await fetch('/api/exchange-public-token', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ public_token })
+          });
+          if(!exchangeRes.ok) throw new Error('exchange failed');
+          state.bankLinked = true;
+          save();
+          showToast('Bank connected — syncing transactions…');
+          await syncBankTransactions();
+        }catch(err){
+          console.error(err);
+          setBankStatus('Could not finish linking your account. Try again.');
+        }
+      },
+      onExit: (err) => {
+        if(err) console.error(err);
+        setBankStatus('');
+      },
+    });
+    handler.open();
+  }catch(err){
+    console.error(err);
+    setBankStatus('Could not reach the bank-connect service. If this app is only running as a static preview, the /api backend needs to be deployed on Vercel first.');
+  }finally{
+    btn.disabled = false;
+  }
 }
 
 async function syncBankTransactions(){
-  showToast('Syncing transactions…');
-  const data = await apiCall('/api/sync-transactions', {});
-  if(!data) return;
-  if(data.error) return showToast(data.error);
-  const parsed = (data.transactions||[]).map(t=>({
-    date: t.date,
-    merchant: t.merchant || 'Unknown',
-    amount: Math.abs(t.amount),
-    category: guessCategory(t.merchant||'')
-  }));
-  if(!parsed.length) return showToast('No new transactions since last sync');
-  startReview(parsed);
+  setBankStatus('Syncing latest transactions…');
+  try{
+    const res = await fetch('/api/transactions');
+    if(!res.ok){
+      const body = await res.json().catch(()=>({}));
+      throw new Error(body.error || 'sync failed');
+    }
+    const { transactions } = await res.json();
+    if(!transactions.length){
+      setBankStatus('No new transactions since last sync.');
+      return;
+    }
+    const parsed = transactions.map(t => ({
+      date: t.date,
+      merchant: t.merchant,
+      amount: Math.abs(t.amount),
+      category: guessCategory(t.merchant || '')
+    }));
+    startReview(parsed);
+    setBankStatus(`Synced ${transactions.length} transaction(s) from your bank — review below.`);
+  }catch(err){
+    console.error(err);
+    setBankStatus('Bank sync failed. The Vercel backend or Plaid keys may not be set up yet.');
+  }
 }
 
 // ---------- review / dedupe ----------
@@ -640,8 +639,7 @@ function showToast(msg){
 }
 
 render();
-renderBankBtn();
-checkBankStatus();
+if(state.bankLinked){ syncBankTransactions(); }
 </script>
 </body>
 </html>
