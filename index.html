@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -217,6 +217,10 @@
       <input type="number" id="setCycle" min="1" max="31" placeholder="e.g. 19">
     </div>
     <div class="field">
+      <label>App secret (required for Connect bank — must match APP_SECRET in Vercel)</label>
+      <input type="password" id="setAppSecret" placeholder="paste the same value set in Vercel">
+    </div>
+    <div class="field">
       <label>Anthropic API key (optional — only needed for screenshot import once deployed on your own site)</label>
       <input type="password" id="setApiKey" placeholder="sk-ant-...">
     </div>
@@ -239,7 +243,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { name:'', limit:400, cycleDay:19, apiKey:'', transactions:[] };
+  return { name:'', limit:400, cycleDay:19, apiKey:'', appSecret:'', transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -249,6 +253,7 @@ function openSettings(){
   document.getElementById('setName').value = state.name || '';
   document.getElementById('setLimit').value = state.limit || '';
   document.getElementById('setCycle').value = state.cycleDay || '';
+  document.getElementById('setAppSecret').value = state.appSecret || '';
   document.getElementById('setApiKey').value = state.apiKey || '';
   document.getElementById('settingsModal').classList.add('open');
 }
@@ -257,6 +262,7 @@ function saveSettings(){
   state.name = document.getElementById('setName').value.trim();
   state.limit = parseFloat(document.getElementById('setLimit').value) || 0;
   state.cycleDay = parseInt(document.getElementById('setCycle').value) || 19;
+  state.appSecret = document.getElementById('setAppSecret').value.trim();
   state.apiKey = document.getElementById('setApiKey').value.trim();
   save();
   closeSettings();
@@ -425,11 +431,21 @@ function setBankStatus(msg){
 
 async function connectBank(){
   const btn = document.getElementById('connectBankBtn');
+  if(!state.appSecret){
+    setBankStatus('Set your "App secret" in Settings first — it must match the APP_SECRET env var in Vercel.');
+    return;
+  }
   btn.disabled = true;
   setBankStatus('Connecting to your bank…');
   try{
-    const res = await fetch('/api/create-link-token', { method:'POST' });
-    if(!res.ok) throw new Error('link token request failed');
+    const res = await fetch('/api/create-link-token', {
+      method:'POST',
+      headers:{ 'x-app-secret': state.appSecret }
+    });
+    if(!res.ok){
+      const body = await res.json().catch(()=>({}));
+      throw new Error(body.error || 'link token request failed');
+    }
     const { link_token } = await res.json();
 
     const handler = Plaid.create({
@@ -439,10 +455,16 @@ async function connectBank(){
         try{
           const exchangeRes = await fetch('/api/exchange-public-token', {
             method:'POST',
-            headers:{'Content-Type':'application/json'},
+            headers:{
+              'Content-Type':'application/json',
+              'x-app-secret': state.appSecret
+            },
             body: JSON.stringify({ public_token })
           });
-          if(!exchangeRes.ok) throw new Error('exchange failed');
+          if(!exchangeRes.ok){
+            const body = await exchangeRes.json().catch(()=>({}));
+            throw new Error(body.error || 'exchange failed');
+          }
           state.bankLinked = true;
           save();
           showToast('Bank connected — syncing transactions…');
@@ -460,16 +482,23 @@ async function connectBank(){
     handler.open();
   }catch(err){
     console.error(err);
-    setBankStatus('Could not reach the bank-connect service. If this app is only running as a static preview, the /api backend needs to be deployed on Vercel first.');
+    setBankStatus('Could not reach the bank-connect service. Check that APP_SECRET matches in Vercel and Settings, and that PLAID env vars are set.');
   }finally{
     btn.disabled = false;
   }
 }
 
 async function syncBankTransactions(){
+  if(!state.appSecret){
+    setBankStatus('Set your "App secret" in Settings first.');
+    return;
+  }
   setBankStatus('Syncing latest transactions…');
   try{
-    const res = await fetch('/api/transactions');
+    const res = await fetch('/api/transactions', {
+      method:'POST',
+      headers:{ 'x-app-secret': state.appSecret }
+    });
     if(!res.ok){
       const body = await res.json().catch(()=>({}));
       throw new Error(body.error || 'sync failed');
@@ -489,7 +518,7 @@ async function syncBankTransactions(){
     setBankStatus(`Synced ${transactions.length} transaction(s) from your bank — review below.`);
   }catch(err){
     console.error(err);
-    setBankStatus('Bank sync failed. The Vercel backend or Plaid keys may not be set up yet.');
+    setBankStatus('Bank sync failed. The Vercel backend, APP_SECRET, or Plaid keys may not be set up right.');
   }
 }
 
