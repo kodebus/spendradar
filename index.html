@@ -151,8 +151,6 @@
     <div class="brand"><div class="brand-icon">◎</div><div class="brand-name">Spend Radar</div></div>
   </div>
   <div class="nav-right">
-    <button class="settings-btn" onclick="emailReport()">✉️ Email</button>
-    <button class="settings-btn" onclick="textReport()">💬 Text</button>
     <button class="settings-btn" onclick="openSettings()">Settings</button>
   </div>
 </nav>
@@ -1034,49 +1032,6 @@ function escapeHtml(str){
 }
 
 // ---------- copy report ----------
-function buildReportText(){
-  const cycleTx = currentCycleSpend();
-  const spent = cycleTx.reduce((s,t)=>s+t.amount,0);
-  const limitSet = state.limit !== null && state.limit !== undefined;
-  const limit = state.limit || 0;
-  const remaining = Math.max(limit-spent,0);
-  const cats = {};
-  cycleTx.forEach(t=>{ cats[t.category]=(cats[t.category]||0)+t.amount; });
-  let lines = [];
-  lines.push(`Spend Radar${state.name ? ' — '+state.name : ''}`);
-  lines.push(`As of ${toISO(viewAsOfDate)}`);
-  lines.push(state.cycleDay ? `Cycle resets on the ${ordinal(state.cycleDay)}` : 'Cycle reset day not set');
-  lines.push('');
-  if(limitSet){
-    lines.push(`Spent: $${spent.toFixed(2)} of $${limit.toFixed(2)}`);
-    lines.push(`Remaining: $${remaining.toFixed(2)}`);
-  } else {
-    lines.push(`Spent: $${spent.toFixed(2)} (no monthly limit set)`);
-  }
-  lines.push('');
-  lines.push('By category:');
-  Object.entries(cats).forEach(([c,a])=> lines.push(`  ${c}: $${a.toFixed(2)}`));
-  lines.push('');
-  lines.push('Transactions this cycle:');
-  cycleTx.forEach(t=> lines.push(`  ${t.date}  ${t.merchant}  $${t.amount.toFixed(2)}`));
-  return lines.join('\n');
-}
-
-function emailReport(){
-  const text = buildReportText();
-  const subject = encodeURIComponent(`Spend Radar Report${state.name ? ' — '+state.name : ''}`);
-  const body = encodeURIComponent(text);
-  window.location.href = `mailto:?subject=${subject}&body=${body}`;
-}
-
-function textReport(){
-  const text = buildReportText();
-  const body = encodeURIComponent(text);
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const sep = isIOS ? '&' : '?';
-  window.location.href = `sms:${sep}body=${body}`;
-}
-
 // ---------- custom date-range report ----------
 let lastRangeReportText = '';
 function runRangeReport(){
