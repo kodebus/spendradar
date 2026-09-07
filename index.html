@@ -574,18 +574,21 @@ async function syncBankTransactions(){
     state.lastSyncedAt = new Date().toISOString();
     save();
     const syncedLabel = formatSyncedTime(state.lastSyncedAt);
-    if(!transactions.length){
-      setBankStatus(`No new transactions since last sync. Last checked ${syncedLabel}.`);
+    const cycleStartISO = getCycleStartISO();
+    const inCycle = transactions.filter(t => t.date >= cycleStartISO);
+    const skippedOld = transactions.length - inCycle.length;
+    if(!inCycle.length){
+      setBankStatus(`No new transactions in the current cycle since last sync. Last checked ${syncedLabel}.` + (skippedOld ? ` (${skippedOld} older transaction(s) outside this cycle were skipped.)` : ''));
       return;
     }
-    const parsed = transactions.map(t => ({
+    const parsed = inCycle.map(t => ({
       date: t.date,
       merchant: t.merchant,
       amount: Math.abs(t.amount),
       category: guessCategory(t.merchant || '')
     }));
     startReview(parsed);
-    setBankStatus(`Synced ${transactions.length} transaction(s) from your bank just now (${syncedLabel}) — review below.`);
+    setBankStatus(`Synced ${inCycle.length} transaction(s) from your bank just now (${syncedLabel})` + (skippedOld ? ` — ${skippedOld} older transaction(s) outside this cycle were skipped` : '') + ' — review below.');
   }catch(err){
     console.error(err);
     setBankStatus('Bank sync failed. The Vercel backend, APP_SECRET, or Plaid keys may not be set up right.');
@@ -633,12 +636,15 @@ function cancelReview(){
 }
 
 // ---------- rendering ----------
-function currentCycleSpend(){
+function getCycleStartISO(){
   const now = new Date();
   const cycleDay = state.cycleDay || 19;
   let start = new Date(now.getFullYear(), now.getMonth(), cycleDay);
   if(now.getDate() < cycleDay) start = new Date(now.getFullYear(), now.getMonth()-1, cycleDay);
-  const startISO = toISO(start);
+  return toISO(start);
+}
+function currentCycleSpend(){
+  const startISO = getCycleStartISO();
   return state.transactions.filter(t => t.date >= startISO);
 }
 
