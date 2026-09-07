@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -495,7 +495,7 @@ async function syncBankTransactions(){
   }
   setBankStatus('Syncing latest transactions…');
   try{
-    const res = await fetch('/api/transactions', {
+    const res = await fetch('/api/sync-transactions', {
       method:'POST',
       headers:{ 'x-app-secret': state.appSecret }
     });
@@ -668,7 +668,26 @@ function showToast(msg){
 }
 
 render();
-if(state.bankLinked){ syncBankTransactions(); }
+checkBankStatus();
+
+async function checkBankStatus(){
+  if(!state.appSecret) return;
+  try{
+    const res = await fetch('/api/bank-status', {
+      method:'GET',
+      headers:{ 'x-app-secret': state.appSecret }
+    });
+    if(!res.ok) return;
+    const { connected } = await res.json();
+    if(connected){
+      state.bankLinked = true;
+      save();
+      syncBankTransactions();
+    }
+  }catch(err){
+    console.error(err);
+  }
+}
 </script>
 </body>
 </html>
