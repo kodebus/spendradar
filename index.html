@@ -291,6 +291,50 @@ function load(){
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+  schedulePushToServer();
+}
+
+// ---------- shared server-side state (so settings/transactions aren't stuck on one device) ----------
+const SYNCED_FIELDS = ['name','limit','cycleDay','transactions','plaidInstitution','plaidMask','lastSyncedAt','manualMethod','bankLinked'];
+let pushTimer = null;
+function schedulePushToServer(){
+  if(!state.appSecret) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushStateToServer, 800);
+}
+async function pushStateToServer(){
+  if(!state.appSecret) return;
+  const payload = {};
+  SYNCED_FIELDS.forEach(f => payload[f] = state[f]);
+  try{
+    await fetch('/api/app-state', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-app-secret': state.appSecret },
+      body: JSON.stringify(payload)
+    });
+  }catch(err){
+    console.error('Failed to sync state to server', err);
+  }
+}
+async function pullStateFromServer(){
+  if(!state.appSecret) return false;
+  try{
+    const res = await fetch('/api/app-state', {
+      method:'GET',
+      headers:{ 'x-app-secret': state.appSecret }
+    });
+    if(!res.ok) return false;
+    const { state: serverState } = await res.json();
+    if(!serverState) return false;
+    SYNCED_FIELDS.forEach(f => {
+      if(serverState[f] !== undefined) state[f] = serverState[f];
+    });
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+    return true;
+  }catch(err){
+    console.error('Failed to pull shared state from server', err);
+    return false;
+  }
 }
 
 function openSettings(){
@@ -302,16 +346,34 @@ function openSettings(){
   document.getElementById('settingsModal').classList.add('open');
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
-function saveSettings(){
-  state.name = document.getElementById('setName').value.trim();
-  state.limit = parseFloat(document.getElementById('setLimit').value) || 0;
-  state.cycleDay = parseInt(document.getElementById('setCycle').value) || 19;
-  state.appSecret = document.getElementById('setAppSecret').value.trim();
-  state.apiKey = document.getElementById('setApiKey').value.trim();
+async function saveSettings(){
+  const priorSecret = state.appSecret;
+  const formName = document.getElementById('setName').value.trim();
+  const formLimit = parseFloat(document.getElementById('setLimit').value) || 0;
+  const formCycleDay = parseInt(document.getElementById('setCycle').value) || 19;
+  const appSecret = document.getElementById('setAppSecret').value.trim();
+  const apiKey = document.getElementById('setApiKey').value.trim();
+
+  state.appSecret = appSecret;
+  state.apiKey = apiKey;
+
+  // If this is the first time an App secret is entered on this device, check the server
+  // first rather than overwriting existing shared data with this device's blank defaults.
+  let pulledExisting = false;
+  if(!priorSecret && appSecret){
+    pulledExisting = await pullStateFromServer();
+  }
+
+  if(!pulledExisting){
+    state.name = formName;
+    state.limit = formLimit;
+    state.cycleDay = formCycleDay;
+  }
+
   save();
   closeSettings();
   render();
-  showToast('Settings saved');
+  showToast(pulledExisting ? 'Loaded your existing settings and transactions from the server' : 'Settings saved');
 }
 
 function togglePanel(id){
@@ -778,8 +840,14 @@ function showToast(msg){
   toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
 }
 
-render();
-checkBankStatus();
+initApp();
+async function initApp(){
+  if(state.appSecret){
+    await pullStateFromServer();
+  }
+  render();
+  checkBankStatus();
+}
 
 async function checkBankStatus(){
   if(!state.appSecret) return;
