@@ -467,7 +467,6 @@ function parseCsv(text){
   state.manualMethod = 'csv';
   save();
   renderConnectionCard();
-  togglePanel('csvPanel');
 }
 
 // ---------- paste text import ----------
@@ -490,7 +489,6 @@ function handlePasteText(){
   save();
   renderConnectionCard();
   document.getElementById('pasteInput').value = '';
-  togglePanel('pastePanel');
 }
 
 // ---------- screenshot import ----------
@@ -511,7 +509,6 @@ shotZone.addEventListener('paste', async (e)=>{
             state.manualMethod = 'screenshot';
             save();
             renderConnectionCard();
-            togglePanel('shotPanel');
           } else {
             showToast('No transactions found in that image');
           }
