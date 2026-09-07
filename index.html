@@ -470,19 +470,60 @@ function parseCsv(text){
 }
 
 // ---------- paste text import ----------
+function parseLineFormat(blob){
+  // Handles bank paste formats where each transaction is its own group of lines:
+  //   Sep04
+  //   Shell Oil
+  //   Gas/Automotive...8337$40.70
+  const lines = blob.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length);
+  const dateLineRe = /^([A-Za-z]{3})\s*(\d{1,2})$/;
+  const amountLineRe = /(-?\$[\d,]+\.\d{2})\s*$/;
+  const results = [];
+  let i = 0, matchedAny = false;
+  while(i < lines.length){
+    const dm = lines[i].match(dateLineRe);
+    if(dm){
+      const iso = parseShortDate(lines[i]);
+      let j = i+1, merchantParts = [], amount = null;
+      while(j < lines.length && j < i+6){
+        const amtMatch = lines[j].match(amountLineRe);
+        if(amtMatch){ amount = Math.abs(parseFloat(amtMatch[1].replace(/[^0-9.-]/g,''))); break; }
+        merchantParts.push(lines[j]);
+        j++;
+      }
+      if(amount !== null && iso){
+        matchedAny = true;
+        const merchant = merchantParts[0] || 'Unknown';
+        results.push({date: iso, merchant, amount, category: guessCategory(merchant)});
+        i = j+1;
+        continue;
+      }
+    }
+    i++;
+  }
+  return matchedAny ? results : null;
+}
+
 function handlePasteText(){
   const blob = document.getElementById('pasteInput').value;
   if(!blob.trim()) return showToast('Paste some text first');
-  const re = /([A-Za-z]{3}\s?\d{1,2})(.*?)(-?\$[\d,]+\.\d{2})/g;
-  let match, parsed = [];
-  while((match = re.exec(blob)) !== null){
-    const iso = parseShortDate(match[1]);
-    let merchant = match[2].replace(/[\.\-_#\d\$,]{3,}/g,' ').replace(/\s+/g,' ').trim();
-    if(!merchant) merchant = 'Unknown';
-    const amount = Math.abs(parseFloat(match[3].replace(/[^0-9.-]/g,'')));
-    if(!iso || isNaN(amount) || amount===0) continue;
-    parsed.push({date:iso, merchant, amount, category:guessCategory(merchant)});
+
+  let parsed = parseLineFormat(blob);
+
+  if(!parsed){
+    // Fallback: original whitespace-agnostic parser for formats with no line breaks at all
+    const re = /([A-Za-z]{3}\s?\d{1,2})(.*?)(-?\$[\d,]+\.\d{2})/gs;
+    let match; parsed = [];
+    while((match = re.exec(blob)) !== null){
+      const iso = parseShortDate(match[1]);
+      let merchant = match[2].replace(/[\.\-_#\d\$,]{3,}/g,' ').replace(/\s+/g,' ').trim();
+      if(!merchant) merchant = 'Unknown';
+      const amount = Math.abs(parseFloat(match[3].replace(/[^0-9.-]/g,'')));
+      if(!iso || isNaN(amount) || amount===0) continue;
+      parsed.push({date:iso, merchant, amount, category:guessCategory(merchant)});
+    }
   }
+
   if(!parsed.length) return showToast('Could not find any transactions in that text');
   startReview(parsed);
   state.manualMethod = 'paste';
