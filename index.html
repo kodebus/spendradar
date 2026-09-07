@@ -110,7 +110,7 @@
   .dropzone img{max-width:100%;max-height:180px;border-radius:8px;margin-top:10px;}
 
   .review-list{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:14px;}
-  .review-row{display:grid;grid-template-columns:90px 1fr 90px 90px;gap:10px;padding:10px 14px;font-size:13px;align-items:center;border-bottom:1px solid var(--border);}
+  .review-row{display:grid;grid-template-columns:24px 90px 1fr 90px 90px;gap:10px;padding:10px 14px;font-size:13px;align-items:center;border-bottom:1px solid var(--border);}
   .review-row:last-child{border-bottom:none;}
   .review-row.dup{opacity:.5;}
   .review-row .tag{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:5px;background:var(--teal-light);color:var(--teal-dark);justify-self:start;}
@@ -234,14 +234,18 @@
 
   <div class="panel card" id="reviewPanel">
     <h3>Review new transactions</h3>
-    <div id="reviewSummary" style="font-size:13px;color:var(--ink-soft);margin-bottom:12px;"></div>
+    <div id="reviewSummary" style="font-size:13px;color:var(--ink-soft);margin-bottom:6px;"></div>
+    <div style="margin-bottom:12px;">
+      <button type="button" onclick="selectAllReview(true)" style="background:none;border:none;color:var(--teal);font-size:12px;font-weight:500;cursor:pointer;padding:0;margin-right:14px;">Select all</button>
+      <button type="button" onclick="selectAllReview(false)" style="background:none;border:none;color:var(--teal);font-size:12px;font-weight:500;cursor:pointer;padding:0;">Select none</button>
+    </div>
     <div class="panel-buttons" style="margin-top:0;margin-bottom:16px;">
-      <button class="btn-sm primary" onclick="confirmReview()">Add new transactions</button>
+      <button class="btn-sm primary" onclick="confirmReview()">Add selected transactions</button>
       <button class="btn-sm" onclick="cancelReview()">Cancel</button>
     </div>
     <div class="review-list" id="reviewList"></div>
     <div class="panel-buttons">
-      <button class="btn-sm primary" onclick="confirmReview()">Add new transactions</button>
+      <button class="btn-sm primary" onclick="confirmReview()">Add selected transactions</button>
       <button class="btn-sm" onclick="cancelReview()">Cancel</button>
     </div>
   </div>
@@ -277,9 +281,12 @@
       <label>Anthropic API key (optional — only needed for screenshot import once deployed on your own site)</label>
       <input type="password" id="setApiKey" placeholder="sk-ant-...">
     </div>
-    <div class="modal-buttons">
-      <button class="btn-sm" onclick="closeSettings()">Cancel</button>
-      <button class="btn-sm primary" onclick="saveSettings()">Save</button>
+    <div class="modal-buttons" style="justify-content:space-between;">
+      <button type="button" style="background:none;border:none;color:var(--red);font-size:12.5px;cursor:pointer;padding:0;" onclick="resetApp()">Reset everything</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-sm" onclick="closeSettings()">Cancel</button>
+        <button class="btn-sm primary" onclick="saveSettings()">Save</button>
+      </div>
     </div>
   </div>
 </div>
@@ -296,7 +303,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { name:'', limit:400, cycleDay:19, apiKey:'', appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', transactions:[] };
+  return { name:'', limit:null, cycleDay:null, apiKey:'', appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -358,8 +365,10 @@ function closeSettings(){ document.getElementById('settingsModal').classList.rem
 async function saveSettings(){
   const priorSecret = state.appSecret;
   const formName = document.getElementById('setName').value.trim();
-  const formLimit = parseFloat(document.getElementById('setLimit').value) || 0;
-  const formCycleDay = parseInt(document.getElementById('setCycle').value) || 19;
+  const limitRaw = document.getElementById('setLimit').value.trim();
+  const cycleRaw = document.getElementById('setCycle').value.trim();
+  const formLimit = limitRaw === '' ? null : (parseFloat(limitRaw) || 0);
+  const formCycleDay = cycleRaw === '' ? null : (parseInt(cycleRaw) || null);
   const appSecret = document.getElementById('setAppSecret').value.trim();
   const apiKey = document.getElementById('setApiKey').value.trim();
 
@@ -383,6 +392,21 @@ async function saveSettings(){
   closeSettings();
   render();
   showToast(pulledExisting ? 'Loaded your existing settings and transactions from the server' : 'Settings saved');
+}
+
+function resetApp(){
+  const ok = confirm('This clears all transactions and resets Cardholder name, Monthly limit, and Cycle reset day back to defaults. Your bank connection stays linked. This can\'t be undone. Continue?');
+  if(!ok) return;
+  state.name = '';
+  state.limit = null;
+  state.cycleDay = null;
+  state.transactions = [];
+  state.manualMethod = null;
+  // bankLinked / plaidInstitution / plaidMask are intentionally left alone — the bank stays connected
+  save();
+  closeSettings();
+  render();
+  showToast('Everything reset. Your bank connection is still linked.');
 }
 
 function togglePanel(id){
@@ -460,7 +484,7 @@ function parseCsv(text){
     const d = new Date(rawDate);
     const iso = toISO(d) || parseShortDate(rawDate);
     if(!iso) continue;
-    parsed.push({date:iso, merchant:desc, amount:amt, category:guessCategory(desc)});
+    parsed.push({date:iso, merchant:desc, amount:amt, category:guessCategory(desc), source:'manual'});
   }
   if(!parsed.length) return showToast('No valid rows found');
   startReview(parsed);
@@ -494,7 +518,7 @@ function parseLineFormat(blob){
       if(amount !== null && iso){
         matchedAny = true;
         const merchant = merchantParts[0] || 'Unknown';
-        results.push({date: iso, merchant, amount, category: guessCategory(merchant)});
+        results.push({date: iso, merchant, amount, category: guessCategory(merchant), source:'manual'});
         i = j+1;
         continue;
       }
@@ -520,7 +544,7 @@ function handlePasteText(){
       if(!merchant) merchant = 'Unknown';
       const amount = Math.abs(parseFloat(match[3].replace(/[^0-9.-]/g,'')));
       if(!iso || isNaN(amount) || amount===0) continue;
-      parsed.push({date:iso, merchant, amount, category:guessCategory(merchant)});
+      parsed.push({date:iso, merchant, amount, category:guessCategory(merchant), source:'manual'});
     }
   }
 
@@ -590,7 +614,7 @@ async function extractFromImage(base64, mediaType){
   try{ rows = JSON.parse(clean); }catch(e){ return []; }
   return rows
     .filter(r=>r.date && r.amount)
-    .map(r=>({date:r.date, merchant:r.merchant||'Unknown', amount:Math.abs(parseFloat(r.amount)), category:guessCategory(r.merchant||'')}));
+    .map(r=>({date:r.date, merchant:r.merchant||'Unknown', amount:Math.abs(parseFloat(r.amount)), category:guessCategory(r.merchant||''), source:'manual'}));
 }
 
 // ---------- bank connection (Plaid) ----------
@@ -694,7 +718,8 @@ async function syncBankTransactions(){
       date: t.date,
       merchant: t.merchant,
       amount: Math.abs(t.amount),
-      category: guessCategory(t.merchant || '')
+      category: guessCategory(t.merchant || ''),
+      source: 'bank'
     }));
     startReview(parsed);
     setBankStatus(`Synced ${inCycle.length} transaction(s) from your bank just now (${syncedLabel})` + (skippedOld ? ` — ${skippedOld} older transaction(s) outside this cycle were skipped` : '') + ' — review below.');
@@ -709,34 +734,51 @@ function isDuplicate(tx){
   return state.transactions.some(t => t.date===tx.date && t.merchant===tx.merchant && Math.abs(t.amount-tx.amount)<0.005);
 }
 function startReview(parsed){
-  pendingReview = parsed.map(tx => ({...tx, dup: isDuplicate(tx)}));
-  const newCount = pendingReview.filter(tx=>!tx.dup).length;
-  const dupCount = pendingReview.length - newCount;
-  document.getElementById('reviewSummary').textContent =
-    `${newCount} new transaction${newCount===1?'':'s'} ready to add` +
-    (dupCount ? ` · ${dupCount} duplicate${dupCount===1?'':'s'} will be skipped` : '') +
-    ' — click "Add new transactions" below to confirm.';
+  pendingReview = parsed.map(tx => ({...tx, dup: isDuplicate(tx), selected: !isDuplicate(tx)}));
+  renderReviewList();
+  ['csvPanel','pastePanel','shotPanel'].forEach(p=>document.getElementById(p).classList.remove('open'));
+  document.getElementById('reviewPanel').classList.add('open');
+  document.getElementById('reviewPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+function renderReviewList(){
   const list = document.getElementById('reviewList');
-  list.innerHTML = pendingReview.map(tx => `
+  list.innerHTML = pendingReview.map((tx,i) => `
     <div class="review-row ${tx.dup?'dup':''}">
+      <input type="checkbox" ${tx.dup?'disabled':''} ${tx.selected?'checked':''} onchange="toggleReviewItem(${i})">
       <span class="tx-date">${tx.date}</span>
       <span>${escapeHtml(tx.merchant)}</span>
       <span class="${tx.dup?'tag dup-tag':'tag'}">${tx.dup?'duplicate':'new'}</span>
       <span class="amt">$${tx.amount.toFixed(2)}</span>
     </div>
   `).join('');
-  ['csvPanel','pastePanel','shotPanel'].forEach(p=>document.getElementById(p).classList.remove('open'));
-  document.getElementById('reviewPanel').classList.add('open');
-  document.getElementById('reviewPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+  updateReviewSummary();
+}
+function updateReviewSummary(){
+  const selectedCount = pendingReview.filter(tx=>tx.selected && !tx.dup).length;
+  const dupCount = pendingReview.filter(tx=>tx.dup).length;
+  const eligibleCount = pendingReview.length - dupCount;
+  document.getElementById('reviewSummary').textContent =
+    `${selectedCount} of ${eligibleCount} transaction${eligibleCount===1?'':'s'} selected to add` +
+    (dupCount ? ` · ${dupCount} duplicate${dupCount===1?'':'s'} will be skipped` : '') +
+    ' — uncheck any you don\'t want, then click "Add selected transactions".';
+}
+function toggleReviewItem(i){
+  pendingReview[i].selected = !pendingReview[i].selected;
+  updateReviewSummary();
+}
+function selectAllReview(select){
+  pendingReview.forEach(tx => { if(!tx.dup) tx.selected = select; });
+  renderReviewList();
 }
 function confirmReview(){
-  const newOnes = pendingReview.filter(tx=>!tx.dup);
-  state.transactions.push(...newOnes.map(({dup, ...rest})=>rest));
+  const newOnes = pendingReview.filter(tx=>tx.selected && !tx.dup);
+  const skippedCount = pendingReview.length - newOnes.length;
+  state.transactions.push(...newOnes.map(({dup, selected, ...rest})=>rest));
   state.transactions.sort((a,b)=> a.date < b.date ? 1 : -1);
   save();
   render();
   document.getElementById('reviewPanel').classList.remove('open');
-  showToast(`Added ${newOnes.length} transaction${newOnes.length===1?'':'s'}${pendingReview.length-newOnes.length ? ', skipped '+(pendingReview.length-newOnes.length)+' duplicate(s)' : ''}`);
+  showToast(`Added ${newOnes.length} transaction${newOnes.length===1?'':'s'}${skippedCount ? ', skipped '+skippedCount : ''}`);
   pendingReview = [];
 }
 function cancelReview(){
@@ -801,7 +843,9 @@ function renderConnectionCard(){
 function render(){
   renderConnectionCard();
   document.getElementById('gaugeName').textContent = state.name ? `${state.name}'s spending` : 'Spending';
-  document.getElementById('gaugeReset').textContent = `Cycle resets on the ${ordinal(state.cycleDay||19)}`;
+  document.getElementById('gaugeReset').textContent = state.cycleDay
+    ? `Cycle resets on the ${ordinal(state.cycleDay)}`
+    : 'Set a cycle reset day in Settings';
 
   const asOfInput = document.getElementById('asOfDate');
   const asOfTodayBtn = document.getElementById('asOfToday');
@@ -812,6 +856,7 @@ function render(){
 
   const cycleTx = currentCycleSpend();
   const spent = cycleTx.reduce((s,t)=>s+t.amount,0);
+  const limitSet = state.limit !== null && state.limit !== undefined;
   const limit = state.limit || 0;
   const remaining = Math.max(limit - spent, 0);
   const pct = limit>0 ? Math.min(spent/limit,1) : 0;
@@ -822,8 +867,8 @@ function render(){
   fill.setAttribute('stroke-dashoffset', circ*(1-pct));
   fill.style.stroke = pct<0.7 ? 'var(--green)' : pct<0.9 ? 'var(--amber)' : 'var(--red)';
 
-  document.getElementById('gaugeRemaining').textContent = `$${remaining.toFixed(2)}`;
-  document.getElementById('gaugeSub').textContent = `$${spent.toFixed(2)} of $${limit.toFixed(2)} spent`;
+  document.getElementById('gaugeRemaining').textContent = limitSet ? `$${remaining.toFixed(2)}` : '—';
+  document.getElementById('gaugeSub').textContent = limitSet ? `$${spent.toFixed(2)} of $${limit.toFixed(2)} spent` : 'Set a monthly limit in Settings';
 
   const cats = {};
   cycleTx.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
@@ -852,6 +897,11 @@ function render(){
 }
 
 function deleteTx(i){
+  const tx = state.transactions[i];
+  if(tx && tx.source === 'bank'){
+    const ok = confirm('This transaction came from your bank and can\'t be re-downloaded by syncing again if you delete it. Delete anyway?');
+    if(!ok) return;
+  }
   state.transactions.splice(i,1);
   save();
   render();
@@ -876,6 +926,7 @@ function escapeHtml(str){
 function copyReport(){
   const cycleTx = currentCycleSpend();
   const spent = cycleTx.reduce((s,t)=>s+t.amount,0);
+  const limitSet = state.limit !== null && state.limit !== undefined;
   const limit = state.limit || 0;
   const remaining = Math.max(limit-spent,0);
   const cats = {};
@@ -883,10 +934,14 @@ function copyReport(){
   let lines = [];
   lines.push(`Spend Radar${state.name ? ' — '+state.name : ''}`);
   lines.push(`As of ${toISO(viewAsOfDate)}`);
-  lines.push(`Cycle resets on the ${ordinal(state.cycleDay||19)}`);
+  lines.push(state.cycleDay ? `Cycle resets on the ${ordinal(state.cycleDay)}` : 'Cycle reset day not set');
   lines.push('');
-  lines.push(`Spent: $${spent.toFixed(2)} of $${limit.toFixed(2)}`);
-  lines.push(`Remaining: $${remaining.toFixed(2)}`);
+  if(limitSet){
+    lines.push(`Spent: $${spent.toFixed(2)} of $${limit.toFixed(2)}`);
+    lines.push(`Remaining: $${remaining.toFixed(2)}`);
+  } else {
+    lines.push(`Spent: $${spent.toFixed(2)} (no monthly limit set)`);
+  }
   lines.push('');
   lines.push('By category:');
   Object.entries(cats).forEach(([c,a])=> lines.push(`  ${c}: $${a.toFixed(2)}`));
