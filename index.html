@@ -66,6 +66,13 @@
   .cat-amt{font-family:var(--mono);font-size:12.5px;text-align:right;}
 
   .actions-row{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
+  .bank-row{display:flex;gap:10px;margin-bottom:6px;}
+  .bank-row .action-btn.primary{flex:2;font-size:15px;padding:14px 16px;}
+  .manual-import-label{display:flex;align-items:center;gap:10px;margin:20px 0 10px;font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.8px;}
+  .manual-import-label::before,.manual-import-label::after{content:'';flex:1;height:1px;background:var(--border);}
+  .actions-row.secondary{margin-bottom:24px;}
+  .actions-row.secondary .action-btn{font-size:12.5px;padding:9px 12px;color:var(--ink-soft);}
+  .actions-row.secondary .action-btn:hover{color:var(--teal);}
   .action-btn{flex:1;min-width:150px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:var(--body);font-weight:500;font-size:13.5px;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;transition:.15s;}
   .action-btn:hover{border-color:var(--teal);background:var(--teal-light);}
   .action-btn.primary{background:var(--teal);color:white;border-color:var(--teal);}
@@ -152,14 +159,17 @@
     </div>
   </div>
 
-  <div class="actions-row">
-    <button class="action-btn" id="connectBankBtn" onclick="connectBank()">🏦 Connect bank</button>
+  <div class="bank-row">
+    <button class="action-btn primary" id="connectBankBtn" onclick="connectBank()">🏦 Connect bank</button>
+    <button class="action-btn" onclick="copyReport()">Copy report</button>
+  </div>
+  <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:0 0 6px;"></div>
+  <div class="manual-import-label">Or import manually</div>
+  <div class="actions-row secondary">
     <button class="action-btn" onclick="togglePanel('csvPanel')">📄 Upload CSV</button>
     <button class="action-btn" onclick="togglePanel('pastePanel')">📋 Paste transactions</button>
     <button class="action-btn" onclick="togglePanel('shotPanel')">🖼️ Paste screenshot</button>
-    <button class="action-btn primary" onclick="copyReport()">Copy report</button>
   </div>
-  <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:-14px 0 24px;"></div>
 
   <div class="panel card" id="csvPanel">
     <h3>Upload CSV</h3>
