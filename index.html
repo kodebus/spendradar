@@ -44,9 +44,6 @@
 
   .top-grid{display:grid;grid-template-columns:280px 1fr;gap:24px;margin-bottom:24px;}
   @media (max-width:760px){.top-grid{grid-template-columns:1fr;}}
-  .reminder-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--teal-light);border:1px solid var(--teal);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13.5px;color:var(--teal-dark);flex-wrap:wrap;}
-  .reminder-banner button{font-family:var(--body);font-size:12.5px;font-weight:600;color:white;background:var(--teal);border:none;border-radius:7px;padding:6px 14px;cursor:pointer;}
-  .reminder-banner .dismiss{background:none;color:var(--teal-dark);text-decoration:underline;padding:0;font-weight:500;}
 
   .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;}
 
@@ -157,6 +154,7 @@
     <button class="settings-btn" onclick="copyReport()">Copy report</button>
     <button class="settings-btn" onclick="emailReport()">✉️ Email</button>
     <button class="settings-btn" onclick="textReport()">💬 Text</button>
+    <button class="settings-btn" onclick="togglePanel('rangePanel')">📅 Date range</button>
     <button class="settings-btn" onclick="openSettings()">Settings</button>
   </div>
 </nav>
@@ -184,8 +182,6 @@
   </aside>
 
   <div class="wrap">
-
-  <div id="reminderBanner" class="reminder-banner" style="display:none;"></div>
 
   <div class="top-grid">
     <div class="card gauge-card">
@@ -242,6 +238,29 @@
     </div>
   </div>
 
+  <div class="panel card" id="rangePanel">
+    <h3>Run a report for a date range</h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+      <div class="field" style="margin:0;">
+        <label>From</label>
+        <input type="date" id="rangeFrom">
+      </div>
+      <div class="field" style="margin:0;">
+        <label>To</label>
+        <input type="date" id="rangeTo">
+      </div>
+      <button class="btn-sm primary" onclick="runRangeReport()">Run report</button>
+    </div>
+    <div id="rangeResult" style="display:none;">
+      <pre id="rangeResultText" style="white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;"></pre>
+      <div class="panel-buttons" style="margin-top:0;">
+        <button class="btn-sm" onclick="copyRangeReport()">Copy</button>
+        <button class="btn-sm" onclick="emailRangeReport()">✉️ Email</button>
+        <button class="btn-sm" onclick="textRangeReport()">💬 Text</button>
+      </div>
+    </div>
+  </div>
+
   <div class="panel card" id="reviewPanel">
     <h3>Review new transactions</h3>
     <div id="reviewSummary" style="font-size:13px;color:var(--ink-soft);margin-bottom:6px;"></div>
@@ -284,16 +303,6 @@
       <input type="number" id="setCycle" min="1" max="31" placeholder="e.g. 19">
     </div>
     <div class="field">
-      <label>How often do you want to check in?</label>
-      <select id="setCheckFrequency" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--body);font-size:14px;background:white;">
-        <option value="">Don't remind me</option>
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly</option>
-        <option value="biweekly">Every 2 weeks</option>
-        <option value="monthly">Monthly</option>
-      </select>
-    </div>
-    <div class="field">
       <label>App secret (required for Connect bank — must match APP_SECRET in Vercel)</label>
       <input type="password" id="setAppSecret" placeholder="paste the same value set in Vercel">
     </div>
@@ -323,7 +332,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { name:'', limit:null, cycleDay:null, apiKey:'', appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', checkFrequency:'', transactions:[] };
+  return { name:'', limit:null, cycleDay:null, apiKey:'', appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -331,7 +340,7 @@ function save(){
 }
 
 // ---------- shared server-side state (so settings/transactions aren't stuck on one device) ----------
-const SYNCED_FIELDS = ['name','limit','cycleDay','transactions','plaidInstitution','plaidMask','lastSyncedAt','manualMethod','bankLinked','checkFrequency'];
+const SYNCED_FIELDS = ['name','limit','cycleDay','transactions','plaidInstitution','plaidMask','lastSyncedAt','manualMethod','bankLinked'];
 let pushTimer = null;
 function schedulePushToServer(){
   if(!state.appSecret) return;
@@ -377,7 +386,6 @@ function openSettings(){
   document.getElementById('setName').value = state.name || '';
   document.getElementById('setLimit').value = state.limit || '';
   document.getElementById('setCycle').value = state.cycleDay || '';
-  document.getElementById('setCheckFrequency').value = state.checkFrequency || '';
   document.getElementById('setAppSecret').value = state.appSecret || '';
   document.getElementById('setApiKey').value = state.apiKey || '';
   document.getElementById('settingsModal').classList.add('open');
@@ -390,13 +398,11 @@ async function saveSettings(){
   const cycleRaw = document.getElementById('setCycle').value.trim();
   const formLimit = limitRaw === '' ? null : (parseFloat(limitRaw) || 0);
   const formCycleDay = cycleRaw === '' ? null : (parseInt(cycleRaw) || null);
-  const formCheckFrequency = document.getElementById('setCheckFrequency').value;
   const appSecret = document.getElementById('setAppSecret').value.trim();
   const apiKey = document.getElementById('setApiKey').value.trim();
 
   state.appSecret = appSecret;
   state.apiKey = apiKey;
-  state.checkFrequency = formCheckFrequency;
 
   // If this is the first time an App secret is entered on this device, check the server
   // first rather than overwriting existing shared data with this device's blank defaults.
@@ -433,7 +439,7 @@ function resetApp(){
 }
 
 function togglePanel(id){
-  ['csvPanel','pastePanel','shotPanel','reviewPanel'].forEach(p=>{
+  ['csvPanel','pastePanel','shotPanel','reviewPanel','rangePanel'].forEach(p=>{
     if(p!==id) document.getElementById(p).classList.remove('open');
   });
   document.getElementById(id).classList.toggle('open');
@@ -776,7 +782,6 @@ async function syncBankTransactions(){
     }));
     startReview(parsed);
     setBankStatus(`Synced ${inCycle.length} transaction(s) from your bank just now (${syncedLabel})` + (skippedOld ? ` — ${skippedOld} older transaction(s) outside this cycle were skipped` : '') + ' — review below.');
-    checkReminder();
   }catch(err){
     console.error(err);
     setBankStatus('Bank sync failed. The Vercel backend, APP_SECRET, or Plaid keys may not be set up right.');
@@ -1030,6 +1035,64 @@ function textReport(){
   window.location.href = `sms:${sep}body=${body}`;
 }
 
+// ---------- custom date-range report ----------
+let lastRangeReportText = '';
+function runRangeReport(){
+  const fromRaw = document.getElementById('rangeFrom').value;
+  const toRaw = document.getElementById('rangeTo').value;
+  if(!fromRaw || !toRaw) return showToast('Pick both a from and to date');
+  if(fromRaw > toRaw) return showToast('The "From" date has to be before the "To" date');
+
+  const rangeTx = state.transactions
+    .filter(t => t.date >= fromRaw && t.date <= toRaw)
+    .sort((a,b)=> a.date < b.date ? 1 : -1);
+
+  const spent = rangeTx.reduce((s,t)=>s+t.amount,0);
+  const cats = {};
+  rangeTx.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
+
+  let lines = [];
+  lines.push(`Spend Radar${state.name ? ' — '+state.name : ''}`);
+  lines.push(`Report: ${fromRaw} to ${toRaw}`);
+  lines.push('');
+  lines.push(`Total spent: $${spent.toFixed(2)}`);
+  lines.push('');
+  if(Object.keys(cats).length){
+    lines.push('By category:');
+    Object.entries(cats).forEach(([c,a])=> lines.push(`  ${c}: $${a.toFixed(2)}`));
+    lines.push('');
+  }
+  lines.push(`Transactions (${rangeTx.length}):`);
+  if(rangeTx.length){
+    rangeTx.forEach(t=> lines.push(`  ${t.date}  ${t.merchant}  $${t.amount.toFixed(2)}`));
+  } else {
+    lines.push('  None found in this range.');
+  }
+
+  lastRangeReportText = lines.join('\n');
+  document.getElementById('rangeResultText').textContent = lastRangeReportText;
+  document.getElementById('rangeResult').style.display = 'block';
+}
+function copyRangeReport(){
+  if(!lastRangeReportText) return;
+  navigator.clipboard.writeText(lastRangeReportText).then(()=>showToast('Report copied to clipboard')).catch(()=>{
+    prompt('Copy this report:', lastRangeReportText);
+  });
+}
+function emailRangeReport(){
+  if(!lastRangeReportText) return;
+  const subject = encodeURIComponent(`Spend Radar Report${state.name ? ' — '+state.name : ''}`);
+  const body = encodeURIComponent(lastRangeReportText);
+  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+}
+function textRangeReport(){
+  if(!lastRangeReportText) return;
+  const body = encodeURIComponent(lastRangeReportText);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const sep = isIOS ? '&' : '?';
+  window.location.href = `sms:${sep}body=${body}`;
+}
+
 // ---------- toast ----------
 let toastTimer;
 function showToast(msg){
@@ -1047,48 +1110,6 @@ async function initApp(){
   }
   render();
   checkBankStatus();
-  checkReminder();
-}
-
-const FREQUENCY_DAYS = { daily:1, weekly:7, biweekly:14, monthly:30 };
-const FREQUENCY_LABELS = { daily:'day', weekly:'week', biweekly:'2 weeks', monthly:'month' };
-function checkReminder(){
-  const banner = document.getElementById('reminderBanner');
-  if(!banner) return;
-  if(!state.checkFrequency || !FREQUENCY_DAYS[state.checkFrequency]){
-    banner.style.display = 'none';
-    return;
-  }
-  const thresholdDays = FREQUENCY_DAYS[state.checkFrequency];
-  const reference = state.lastSyncedAt ? new Date(state.lastSyncedAt) : null;
-  const daysSince = reference ? (Date.now() - reference.getTime()) / 86400000 : Infinity;
-  if(daysSince < thresholdDays){
-    banner.style.display = 'none';
-    return;
-  }
-  const label = FREQUENCY_LABELS[state.checkFrequency];
-  const message = reference
-    ? `It's been over a ${label} since you last checked Spend Radar — want to see what's new?`
-    : `You asked to check in every ${label} — take a look at your spending now?`;
-  banner.style.display = 'flex';
-  banner.innerHTML = `
-    <span>👋 ${message}</span>
-    <span style="display:flex;gap:12px;align-items:center;">
-      <button onclick="reminderSyncNow()">Check now</button>
-      <button class="dismiss" onclick="dismissReminder()">Dismiss</button>
-    </span>
-  `;
-}
-function dismissReminder(){
-  document.getElementById('reminderBanner').style.display = 'none';
-}
-function reminderSyncNow(){
-  dismissReminder();
-  if(state.bankLinked){
-    syncBankTransactions();
-  } else {
-    document.querySelector('.sidebar').scrollIntoView({ behavior:'smooth' });
-  }
 }
 
 async function checkBankStatus(){
