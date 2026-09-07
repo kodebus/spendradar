@@ -153,7 +153,6 @@
   <div class="nav-right">
     <button class="settings-btn" onclick="emailReport()">✉️ Email</button>
     <button class="settings-btn" onclick="textReport()">💬 Text</button>
-    <button class="settings-btn" onclick="togglePanel('rangePanel')">📅 Date range</button>
     <button class="settings-btn" onclick="openSettings()">Settings</button>
   </div>
 </nav>
@@ -161,7 +160,7 @@
 <div class="app-shell">
 
   <aside class="sidebar">
-    <div class="sidebar-title">Connect Bank</div>
+    <div class="sidebar-title">Get Transactions</div>
     <button class="nav-item" id="connectBankBtn" onclick="connectBank()">
       <span class="nav-sub">🏦 Connect Bank</span>
       <span class="nav-via">through Plaid</span>
@@ -213,6 +212,29 @@
   <div class="card connection-card" id="connectionCard"></div>
   <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:0 0 20px;"></div>
 
+  <div class="card" id="rangePanel" style="margin-bottom:24px;">
+    <h3 style="font-family:var(--display);font-size:15px;font-weight:600;margin-bottom:14px;">Run a report for a date range</h3>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+      <div class="field" style="margin:0;">
+        <label>From</label>
+        <input type="date" id="rangeFrom">
+      </div>
+      <div class="field" style="margin:0;">
+        <label>To</label>
+        <input type="date" id="rangeTo">
+      </div>
+      <button class="btn-sm primary" onclick="runRangeReport()">Run report</button>
+    </div>
+    <div id="rangeResult" style="display:none;">
+      <pre id="rangeResultText" style="white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;"></pre>
+      <div class="panel-buttons" style="margin-top:0;">
+        <button class="btn-sm" onclick="copyRangeReport()">Copy</button>
+        <button class="btn-sm" onclick="emailRangeReport()">✉️ Email</button>
+        <button class="btn-sm" onclick="textRangeReport()">💬 Text</button>
+      </div>
+    </div>
+  </div>
+
   <div class="panel card" id="csvPanel">
     <h3>Upload CSV</h3>
     <input type="file" id="csvInput" accept=".csv" onchange="handleCsvFile(event)"/>
@@ -234,29 +256,6 @@
     <div class="hint">Sends the image to Claude to read out the transaction rows. Needs an Anthropic API key set in Settings when this app is running on its own site (works without one inside a Claude preview).</div>
     <div class="panel-buttons">
       <button class="btn-sm" onclick="togglePanel('shotPanel')">Cancel</button>
-    </div>
-  </div>
-
-  <div class="panel card" id="rangePanel">
-    <h3>Run a report for a date range</h3>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
-      <div class="field" style="margin:0;">
-        <label>From</label>
-        <input type="date" id="rangeFrom">
-      </div>
-      <div class="field" style="margin:0;">
-        <label>To</label>
-        <input type="date" id="rangeTo">
-      </div>
-      <button class="btn-sm primary" onclick="runRangeReport()">Run report</button>
-    </div>
-    <div id="rangeResult" style="display:none;">
-      <pre id="rangeResultText" style="white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;"></pre>
-      <div class="panel-buttons" style="margin-top:0;">
-        <button class="btn-sm" onclick="copyRangeReport()">Copy</button>
-        <button class="btn-sm" onclick="emailRangeReport()">✉️ Email</button>
-        <button class="btn-sm" onclick="textRangeReport()">💬 Text</button>
-      </div>
     </div>
   </div>
 
@@ -489,7 +488,7 @@ function resetApp(){
 }
 
 function togglePanel(id){
-  ['csvPanel','pastePanel','shotPanel','reviewPanel','rangePanel'].forEach(p=>{
+  ['csvPanel','pastePanel','shotPanel','reviewPanel'].forEach(p=>{
     if(p!==id) document.getElementById(p).classList.remove('open');
   });
   document.getElementById(id).classList.toggle('open');
