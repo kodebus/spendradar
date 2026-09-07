@@ -66,13 +66,26 @@
   .cat-amt{font-family:var(--mono);font-size:12.5px;text-align:right;}
 
   .actions-row{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
-  .bank-row{display:flex;gap:10px;margin-bottom:6px;}
-  .bank-row .action-btn.primary{flex:2;font-size:15px;padding:14px 16px;}
-  .manual-import-label{display:flex;align-items:center;gap:10px;margin:20px 0 10px;font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.8px;}
-  .manual-import-label::before,.manual-import-label::after{content:'';flex:1;height:1px;background:var(--border);}
-  .actions-row.secondary{margin-bottom:24px;}
-  .actions-row.secondary .action-btn{font-size:12.5px;padding:9px 12px;color:var(--ink-soft);}
-  .actions-row.secondary .action-btn:hover{color:var(--teal);}
+
+  .app-shell{display:flex;max-width:1180px;margin:0 auto;align-items:flex-start;}
+  .sidebar{width:210px;flex-shrink:0;padding:36px 12px 24px 24px;position:sticky;top:66px;}
+  .sidebar-title{font-family:var(--display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin:0 0 8px 10px;}
+  .nav-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:9px 10px;cursor:pointer;margin-bottom:2px;font-family:var(--body);transition:.15s;}
+  .nav-item:hover{background:var(--teal-light);}
+  .nav-item .nav-sub{font-size:12.5px;font-weight:500;color:var(--ink);}
+  .nav-item .nav-via{font-size:10.5px;color:var(--ink-soft);}
+  @media (max-width:760px){
+    .app-shell{flex-direction:column;}
+    .sidebar{width:100%;position:static;padding:16px 20px 0;display:flex;flex-direction:row;gap:6px;overflow-x:auto;}
+    .sidebar-title{display:none;}
+    .nav-item{flex-direction:row;align-items:center;gap:6px;white-space:nowrap;width:auto;}
+    .nav-item .nav-via{display:none;}
+  }
+
+  .connection-card{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:6px;flex-wrap:wrap;}
+  .connection-label{font-family:var(--display);font-size:14.5px;font-weight:600;}
+  .connection-sub{font-size:12px;color:var(--ink-soft);margin-top:3px;}
+  .connection-empty{font-size:13.5px;color:var(--ink-soft);}
   .action-btn{flex:1;min-width:150px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:var(--body);font-weight:500;font-size:13.5px;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;transition:.15s;}
   .action-btn:hover{border-color:var(--teal);background:var(--teal-light);}
   .action-btn.primary{background:var(--teal);color:white;border-color:var(--teal);}
@@ -131,10 +144,33 @@
     <a href="https://japps.ai" class="nav-back">← Japps.ai</a>
     <div class="brand"><div class="brand-icon">◎</div><div class="brand-name">Spend Radar</div></div>
   </div>
+  <button class="settings-btn" onclick="copyReport()">Copy report</button>
   <button class="settings-btn" onclick="openSettings()">Settings</button>
 </nav>
 
-<div class="wrap">
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-title">Connect Bank</div>
+    <button class="nav-item" onclick="connectBank()">
+      <span class="nav-sub">🏦 Connect Bank</span>
+      <span class="nav-via">through Plaid</span>
+    </button>
+    <button class="nav-item" onclick="togglePanel('csvPanel')">
+      <span class="nav-sub">📄 Upload CSV</span>
+      <span class="nav-via">through CSV</span>
+    </button>
+    <button class="nav-item" onclick="togglePanel('pastePanel')">
+      <span class="nav-sub">📋 Paste transactions</span>
+      <span class="nav-via">through pasting transactions</span>
+    </button>
+    <button class="nav-item" onclick="togglePanel('shotPanel')">
+      <span class="nav-sub">🖼️ Paste screenshot</span>
+      <span class="nav-via">through pasting screenshot</span>
+    </button>
+  </aside>
+
+  <div class="wrap">
 
   <div class="top-grid">
     <div class="card gauge-card">
@@ -159,17 +195,8 @@
     </div>
   </div>
 
-  <div class="bank-row">
-    <button class="action-btn primary" id="connectBankBtn" onclick="connectBank()">🏦 Connect bank</button>
-    <button class="action-btn" onclick="copyReport()">Copy report</button>
-  </div>
-  <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:0 0 6px;"></div>
-  <div class="manual-import-label">Or import manually</div>
-  <div class="actions-row secondary">
-    <button class="action-btn" onclick="togglePanel('csvPanel')">📄 Upload CSV</button>
-    <button class="action-btn" onclick="togglePanel('pastePanel')">📋 Paste transactions</button>
-    <button class="action-btn" onclick="togglePanel('shotPanel')">🖼️ Paste screenshot</button>
-  </div>
+  <div class="card connection-card" id="connectionCard"></div>
+  <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:0 0 20px;"></div>
 
   <div class="panel card" id="csvPanel">
     <h3>Upload CSV</h3>
@@ -197,6 +224,11 @@
 
   <div class="panel card" id="reviewPanel">
     <h3>Review new transactions</h3>
+    <div id="reviewSummary" style="font-size:13px;color:var(--ink-soft);margin-bottom:12px;"></div>
+    <div class="panel-buttons" style="margin-top:0;margin-bottom:16px;">
+      <button class="btn-sm primary" onclick="confirmReview()">Add new transactions</button>
+      <button class="btn-sm" onclick="cancelReview()">Cancel</button>
+    </div>
     <div class="review-list" id="reviewList"></div>
     <div class="panel-buttons">
       <button class="btn-sm primary" onclick="confirmReview()">Add new transactions</button>
@@ -209,6 +241,7 @@
     <div id="txList"></div>
   </div>
 
+  </div>
 </div>
 
 <div class="modal-overlay" id="settingsModal">
@@ -253,7 +286,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { name:'', limit:400, cycleDay:19, apiKey:'', appSecret:'', transactions:[] };
+  return { name:'', limit:400, cycleDay:19, apiKey:'', appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -304,6 +337,16 @@ function toISO(d){
   if(!(d instanceof Date) || isNaN(d)) return null;
   return d.toISOString().slice(0,10);
 }
+function formatSyncedTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const timeStr = d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  if(sameDay) return `today at ${timeStr}`;
+  const dateStr = d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  return `${dateStr} at ${timeStr}`;
+}
 const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 function parseShortDate(str){
   const m = str.match(/([A-Za-z]{3})\s*(\d{1,2})/);
@@ -349,6 +392,9 @@ function parseCsv(text){
   }
   if(!parsed.length) return showToast('No valid rows found');
   startReview(parsed);
+  state.manualMethod = 'csv';
+  save();
+  renderConnectionCard();
   togglePanel('csvPanel');
 }
 
@@ -368,6 +414,9 @@ function handlePasteText(){
   }
   if(!parsed.length) return showToast('Could not find any transactions in that text');
   startReview(parsed);
+  state.manualMethod = 'paste';
+  save();
+  renderConnectionCard();
   document.getElementById('pasteInput').value = '';
   togglePanel('pastePanel');
 }
@@ -387,6 +436,9 @@ shotZone.addEventListener('paste', async (e)=>{
           const parsed = await extractFromImage(base64, item.type);
           if(parsed && parsed.length){
             startReview(parsed);
+            state.manualMethod = 'screenshot';
+            save();
+            renderConnectionCard();
             togglePanel('shotPanel');
           } else {
             showToast('No transactions found in that image');
@@ -460,7 +512,7 @@ async function connectBank(){
 
     const handler = Plaid.create({
       token: link_token,
-      onSuccess: async (public_token) => {
+      onSuccess: async (public_token, metadata) => {
         setBankStatus('Linking account…');
         try{
           const exchangeRes = await fetch('/api/exchange-public-token', {
@@ -476,7 +528,11 @@ async function connectBank(){
             throw new Error(body.error || 'exchange failed');
           }
           state.bankLinked = true;
+          state.manualMethod = null;
+          state.plaidInstitution = metadata?.institution?.name || '';
+          state.plaidMask = metadata?.accounts?.[0]?.mask || '';
           save();
+          renderConnectionCard();
           showToast('Bank connected — syncing transactions…');
           await syncBankTransactions();
         }catch(err){
@@ -514,8 +570,11 @@ async function syncBankTransactions(){
       throw new Error(body.error || 'sync failed');
     }
     const { transactions } = await res.json();
+    state.lastSyncedAt = new Date().toISOString();
+    save();
+    const syncedLabel = formatSyncedTime(state.lastSyncedAt);
     if(!transactions.length){
-      setBankStatus('No new transactions since last sync.');
+      setBankStatus(`No new transactions since last sync. Last checked ${syncedLabel}.`);
       return;
     }
     const parsed = transactions.map(t => ({
@@ -525,7 +584,7 @@ async function syncBankTransactions(){
       category: guessCategory(t.merchant || '')
     }));
     startReview(parsed);
-    setBankStatus(`Synced ${transactions.length} transaction(s) from your bank — review below.`);
+    setBankStatus(`Synced ${transactions.length} transaction(s) from your bank just now (${syncedLabel}) — review below.`);
   }catch(err){
     console.error(err);
     setBankStatus('Bank sync failed. The Vercel backend, APP_SECRET, or Plaid keys may not be set up right.');
@@ -538,6 +597,12 @@ function isDuplicate(tx){
 }
 function startReview(parsed){
   pendingReview = parsed.map(tx => ({...tx, dup: isDuplicate(tx)}));
+  const newCount = pendingReview.filter(tx=>!tx.dup).length;
+  const dupCount = pendingReview.length - newCount;
+  document.getElementById('reviewSummary').textContent =
+    `${newCount} new transaction${newCount===1?'':'s'} ready to add` +
+    (dupCount ? ` · ${dupCount} duplicate${dupCount===1?'':'s'} will be skipped` : '') +
+    ' — click "Add new transactions" below to confirm.';
   const list = document.getElementById('reviewList');
   list.innerHTML = pendingReview.map(tx => `
     <div class="review-row ${tx.dup?'dup':''}">
@@ -549,6 +614,7 @@ function startReview(parsed){
   `).join('');
   ['csvPanel','pastePanel','shotPanel'].forEach(p=>document.getElementById(p).classList.remove('open'));
   document.getElementById('reviewPanel').classList.add('open');
+  document.getElementById('reviewPanel').scrollIntoView({ behavior:'smooth', block:'start' });
 }
 function confirmReview(){
   const newOnes = pendingReview.filter(tx=>!tx.dup);
@@ -575,7 +641,35 @@ function currentCycleSpend(){
   return state.transactions.filter(t => t.date >= startISO);
 }
 
+function renderConnectionCard(){
+  const el = document.getElementById('connectionCard');
+  if(!el) return;
+  if(state.bankLinked){
+    const inst = state.plaidInstitution || 'your bank';
+    const mask = state.plaidMask ? ` •••• ${escapeHtml(state.plaidMask)}` : '';
+    const synced = state.lastSyncedAt ? `Last synced ${formatSyncedTime(state.lastSyncedAt)}` : 'Not synced yet';
+    el.innerHTML = `
+      <div>
+        <div class="connection-label">🏦 Connected to ${escapeHtml(inst)}${mask}</div>
+        <div class="connection-sub">${synced}</div>
+      </div>
+      <button class="btn-sm primary" onclick="syncBankTransactions()">Sync now</button>
+    `;
+  } else if(state.manualMethod){
+    const labels = { csv:'📄 Importing via CSV upload', paste:'📋 Importing via pasted transactions', screenshot:'🖼️ Importing via screenshot' };
+    el.innerHTML = `
+      <div>
+        <div class="connection-label">${labels[state.manualMethod] || 'Importing manually'}</div>
+        <div class="connection-sub">Choose a different method from the sidebar any time.</div>
+      </div>
+    `;
+  } else {
+    el.innerHTML = `<div class="connection-empty">Choose how to bring in transactions from the sidebar to get started — connect your bank through Plaid, or import manually via CSV, pasted text, or a screenshot.</div>`;
+  }
+}
+
 function render(){
+  renderConnectionCard();
   document.getElementById('gaugeName').textContent = state.name ? `${state.name}'s spending` : 'Spending';
   document.getElementById('gaugeReset').textContent = `Cycle resets on the ${ordinal(state.cycleDay||19)}`;
 
@@ -692,6 +786,7 @@ async function checkBankStatus(){
     if(connected){
       state.bankLinked = true;
       save();
+      renderConnectionCard();
       syncBankTransactions();
     }
   }catch(err){
