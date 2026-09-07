@@ -688,6 +688,36 @@ async function connectBank(){
   }
 }
 
+async function disconnectBank(){
+  if(!state.appSecret){
+    setBankStatus('Set your "App secret" in Settings first.');
+    return;
+  }
+  const ok = confirm('Disconnect this bank account? You\'ll need to link it again through Plaid before syncing works. Transactions already added won\'t be removed.');
+  if(!ok) return;
+  setBankStatus('Disconnecting…');
+  try{
+    const res = await fetch('/api/disconnect-bank', {
+      method:'POST',
+      headers:{ 'x-app-secret': state.appSecret }
+    });
+    if(!res.ok){
+      const body = await res.json().catch(()=>({}));
+      throw new Error(body.error || 'disconnect failed');
+    }
+    state.bankLinked = false;
+    state.plaidInstitution = '';
+    state.plaidMask = '';
+    state.lastSyncedAt = null;
+    save();
+    renderConnectionCard();
+    setBankStatus('Bank disconnected. Connect again any time from the sidebar.');
+  }catch(err){
+    console.error(err);
+    setBankStatus('Could not disconnect. Try again.');
+  }
+}
+
 async function syncBankTransactions(){
   if(!state.appSecret){
     setBankStatus('Set your "App secret" in Settings first.');
@@ -825,7 +855,10 @@ function renderConnectionCard(){
         <div class="connection-label">🏦 Connected to ${escapeHtml(inst)}${mask}</div>
         <div class="connection-sub">${synced}</div>
       </div>
-      <button class="btn-sm primary" onclick="syncBankTransactions()">Sync now</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-sm primary" onclick="syncBankTransactions()">Sync now</button>
+        <button class="btn-sm" onclick="disconnectBank()">Disconnect</button>
+      </div>
     `;
   } else if(state.manualMethod){
     const labels = { csv:'📄 Importing via CSV upload', paste:'📋 Importing via pasted transactions', screenshot:'🖼️ Importing via screenshot' };
