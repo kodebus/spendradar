@@ -151,7 +151,6 @@
     <div class="brand"><div class="brand-icon">◎</div><div class="brand-name">Spend Radar</div></div>
   </div>
   <div class="nav-right">
-    <button class="settings-btn" onclick="copyReport()">Copy report</button>
     <button class="settings-btn" onclick="emailReport()">✉️ Email</button>
     <button class="settings-btn" onclick="textReport()">💬 Text</button>
     <button class="settings-btn" onclick="togglePanel('rangePanel')">📅 Date range</button>
@@ -295,8 +294,28 @@
       <input type="text" id="setName" placeholder="e.g. David">
     </div>
     <div class="field">
-      <label>Monthly spending limit</label>
-      <input type="number" id="setLimit" placeholder="e.g. 400">
+      <label>Spending limit</label>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="font-weight:400;font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;">
+            <input type="radio" name="limitMode" value="monthly" checked onchange="onLimitModeChange()"> Monthly
+          </label>
+          <input type="number" id="setLimitMonthly" placeholder="e.g. 400" oninput="onLimitFieldInput('monthly')">
+        </div>
+        <div style="flex:1;">
+          <label style="font-weight:400;font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;">
+            <input type="radio" name="limitMode" value="biweekly" onchange="onLimitModeChange()"> Bi-weekly
+          </label>
+          <input type="number" id="setLimitBiweekly" placeholder="e.g. 200" oninput="onLimitFieldInput('biweekly')" disabled>
+        </div>
+        <div style="flex:1;">
+          <label style="font-weight:400;font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;">
+            <input type="radio" name="limitMode" value="weekly" onchange="onLimitModeChange()"> Weekly
+          </label>
+          <input type="number" id="setLimitWeekly" placeholder="e.g. 100" oninput="onLimitFieldInput('weekly')" disabled>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:6px;">Pick which one you'd rather enter directly — the other two are calculated from it.</div>
     </div>
     <div class="field">
       <label>Cycle reset day (day of month)</label>
@@ -332,7 +351,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { name:'', limit:null, cycleDay:null, apiKey:'', appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', transactions:[] };
+  return { name:'', limit:null, cycleDay:null, apiKey:'', appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', limitMode:'monthly', transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -384,17 +403,47 @@ async function pullStateFromServer(){
 
 function openSettings(){
   document.getElementById('setName').value = state.name || '';
-  document.getElementById('setLimit').value = state.limit || '';
+  const monthly = state.limit;
+  document.getElementById('setLimitMonthly').value = monthly || '';
+  document.getElementById('setLimitBiweekly').value = monthly ? (monthly/2).toFixed(2) : '';
+  document.getElementById('setLimitWeekly').value = monthly ? (monthly/4).toFixed(2) : '';
+  const mode = state.limitMode || 'monthly';
+  document.querySelector(`input[name=limitMode][value=${mode}]`).checked = true;
+  onLimitModeChange();
   document.getElementById('setCycle').value = state.cycleDay || '';
   document.getElementById('setAppSecret').value = state.appSecret || '';
   document.getElementById('setApiKey').value = state.apiKey || '';
   document.getElementById('settingsModal').classList.add('open');
 }
+function onLimitModeChange(){
+  const mode = document.querySelector('input[name=limitMode]:checked').value;
+  document.getElementById('setLimitMonthly').disabled = mode !== 'monthly';
+  document.getElementById('setLimitBiweekly').disabled = mode !== 'biweekly';
+  document.getElementById('setLimitWeekly').disabled = mode !== 'weekly';
+}
+function onLimitFieldInput(source){
+  const mEl = document.getElementById('setLimitMonthly');
+  const bEl = document.getElementById('setLimitBiweekly');
+  const wEl = document.getElementById('setLimitWeekly');
+  if(source === 'monthly'){
+    const v = parseFloat(mEl.value);
+    if(!isNaN(v)){ bEl.value = (v/2).toFixed(2); wEl.value = (v/4).toFixed(2); }
+    else { bEl.value = ''; wEl.value = ''; }
+  } else if(source === 'biweekly'){
+    const v = parseFloat(bEl.value);
+    if(!isNaN(v)){ mEl.value = (v*2).toFixed(2); wEl.value = (v/2).toFixed(2); }
+    else { mEl.value = ''; wEl.value = ''; }
+  } else if(source === 'weekly'){
+    const v = parseFloat(wEl.value);
+    if(!isNaN(v)){ mEl.value = (v*4).toFixed(2); bEl.value = (v*2).toFixed(2); }
+    else { mEl.value = ''; bEl.value = ''; }
+  }
+}
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
 async function saveSettings(){
   const priorSecret = state.appSecret;
   const formName = document.getElementById('setName').value.trim();
-  const limitRaw = document.getElementById('setLimit').value.trim();
+  const limitRaw = document.getElementById('setLimitMonthly').value.trim();
   const cycleRaw = document.getElementById('setCycle').value.trim();
   const formLimit = limitRaw === '' ? null : (parseFloat(limitRaw) || 0);
   const formCycleDay = cycleRaw === '' ? null : (parseInt(cycleRaw) || null);
@@ -403,6 +452,7 @@ async function saveSettings(){
 
   state.appSecret = appSecret;
   state.apiKey = apiKey;
+  state.limitMode = document.querySelector('input[name=limitMode]:checked').value;
 
   // If this is the first time an App secret is entered on this device, check the server
   // first rather than overwriting existing shared data with this device's blank defaults.
@@ -1011,13 +1061,6 @@ function buildReportText(){
   lines.push('Transactions this cycle:');
   cycleTx.forEach(t=> lines.push(`  ${t.date}  ${t.merchant}  $${t.amount.toFixed(2)}`));
   return lines.join('\n');
-}
-
-function copyReport(){
-  const text = buildReportText();
-  navigator.clipboard.writeText(text).then(()=>showToast('Report copied to clipboard')).catch(()=>{
-    prompt('Copy this report:', text);
-  });
 }
 
 function emailReport(){
