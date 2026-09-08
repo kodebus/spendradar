@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
     --bg:#F6F8FB;
@@ -192,15 +193,10 @@
         </select>
       </div>
       <button class="btn-sm primary" onclick="runSearch()">Search</button>
+      <button class="btn-sm" onclick="clearSearch()">Clear</button>
+      <button class="btn-sm" onclick="downloadSearchPDF()">📄 Download PDF</button>
     </div>
-    <div id="searchResult" style="display:none;">
-      <pre id="searchResultText" style="white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;"></pre>
-      <div class="panel-buttons" style="margin-top:0;">
-        <button class="btn-sm" onclick="copySearchResult()">Copy</button>
-        <button class="btn-sm" onclick="emailSearchResult()">✉️ Email</button>
-        <button class="btn-sm" onclick="textSearchResult()">💬 Text</button>
-      </div>
-    </div>
+    <div id="searchStatus" style="font-size:12.5px;color:var(--ink-soft);"></div>
   </div>
 
   <div class="panel card" id="csvPanel">
@@ -237,7 +233,7 @@
   </div>
 
   <div class="card tx-card">
-    <h2>Transactions <span><button onclick="exportTransactionsCSV()" style="margin-right:14px;">Export CSV</button><button onclick="clearAll()">Clear all</button></span></h2>
+    <h2><span id="txHeading">Transactions</span> <span><button onclick="exportTransactionsCSV()" style="margin-right:14px;">Export CSV</button><button onclick="clearAll()">Clear all</button></span></h2>
     <div id="txList"></div>
   </div>
 
@@ -780,7 +776,9 @@ function render(){
   `).join('') : '<div class="empty-state">No transactions this cycle yet.</div>';
 
   const txDiv = document.getElementById('txList');
-  const indexed = state.transactions.map((t,i)=>({...t, _idx:i}));
+  const indexed = state.transactions
+    .map((t,i)=>({...t, _idx:i}))
+    .filter(t => matchesFilter(t, activeFilter));
   indexed.sort((a,b)=>{
     let av, bv;
     if(txSort.field === 'amount'){ av = a.amount; bv = b.amount; }
@@ -807,7 +805,12 @@ function render(){
       <div class="tx-amt">$${t.amount.toFixed(2)}</div>
       <button class="tx-del" onclick="deleteTx(${t._idx})" title="Delete">✕</button>
     </div>
-  `).join('') : '<div class="empty-state">No transactions yet — import a CSV or paste text above.</div>');
+  `).join('') : `<div class="empty-state">${activeFilter ? 'No transactions match this search.' : 'No transactions yet — import a CSV or paste text above.'}</div>`);
+
+  const heading = document.getElementById('txHeading');
+  if(heading) heading.textContent = activeFilter ? `Transactions (${indexed.length} matching)` : 'Transactions';
+  const searchStatus = document.getElementById('searchStatus');
+  if(searchStatus) searchStatus.textContent = activeFilter ? `Filtering the list below to: ${filterDescription(activeFilter)}` : '';
 }
 
 let txSort = { field: 'date', dir: 'desc' };
@@ -877,7 +880,7 @@ function escapeHtml(str){
 }
 
 // ---------- transaction search ----------
-let lastSearchResultText = '';
+let activeFilter = null;
 
 function populateSearchFilters(){
   const catSelect = document.getElementById('searchCategory');
@@ -899,6 +902,23 @@ function populateSearchFilters(){
   if(sources.includes(prevSrc)) srcSelect.value = prevSrc;
 }
 
+function matchesFilter(t, filter){
+  if(!filter) return true;
+  if(filter.from && t.date < filter.from) return false;
+  if(filter.to && t.date > filter.to) return false;
+  if(filter.category && t.category !== filter.category) return false;
+  if(filter.source && t.source !== filter.source) return false;
+  return true;
+}
+function filterDescription(filter){
+  if(!filter) return 'All transactions';
+  const parts = [];
+  if(filter.from || filter.to) parts.push(`${filter.from||'any date'} to ${filter.to||'any date'}`);
+  if(filter.category) parts.push(`category: ${filter.category}`);
+  if(filter.source) parts.push(`via: ${filter.source}`);
+  return parts.length ? parts.join(' · ') : 'All transactions';
+}
+
 function runSearch(){
   const fromRaw = document.getElementById('searchFrom').value;
   const toRaw = document.getElementById('searchTo').value;
@@ -907,62 +927,66 @@ function runSearch(){
 
   if(fromRaw && toRaw && fromRaw > toRaw) return showToast('The "From" date has to be before the "To" date');
 
-  const results = state.transactions
-    .filter(t => !fromRaw || t.date >= fromRaw)
-    .filter(t => !toRaw || t.date <= toRaw)
-    .filter(t => !category || t.category === category)
-    .filter(t => !source || t.source === source)
-    .sort((a,b)=> a.date < b.date ? 1 : -1);
+  const hasAnyFilter = fromRaw || toRaw || category || source;
+  activeFilter = hasAnyFilter ? { from: fromRaw, to: toRaw, category, source } : null;
+  render();
+}
+function clearSearch(){
+  activeFilter = null;
+  document.getElementById('searchFrom').value = '';
+  document.getElementById('searchTo').value = '';
+  document.getElementById('searchCategory').value = '';
+  document.getElementById('searchSource').value = '';
+  render();
+}
+
+function downloadSearchPDF(){
+  const results = state.transactions.filter(t => matchesFilter(t, activeFilter));
+  if(!results.length) return showToast('No transactions match to export');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let y = 20;
+
+  doc.setFontSize(16);
+  doc.text('Spend Radar', 14, y); y += 8;
+  doc.setFontSize(10);
+  doc.setTextColor(120);
+  doc.text(filterDescription(activeFilter), 14, y); y += 10;
+  doc.setTextColor(0);
 
   const spent = results.reduce((s,t)=>s+t.amount,0);
+  doc.setFontSize(12);
+  doc.text(`Total: $${spent.toFixed(2)}`, 14, y); y += 8;
+
   const cats = {};
   results.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
-
-  const filterDesc = [];
-  if(fromRaw || toRaw) filterDesc.push(`${fromRaw||'any date'} to ${toRaw||'any date'}`);
-  if(category) filterDesc.push(`category: ${category}`);
-  if(source) filterDesc.push(`via: ${source}`);
-
-  let lines = [];
-  lines.push('Spend Radar — Search results');
-  lines.push(filterDesc.length ? filterDesc.join(' · ') : 'All transactions');
-  lines.push('');
-  lines.push(`Total: $${spent.toFixed(2)}`);
-  lines.push('');
-  if(!category && Object.keys(cats).length > 1){
-    lines.push('By category:');
-    Object.entries(cats).forEach(([c,a])=> lines.push(`  ${c}: $${a.toFixed(2)}`));
-    lines.push('');
-  }
-  lines.push(`Transactions (${results.length}):`);
-  if(results.length){
-    results.forEach(t=> lines.push(`  ${t.date}  ${t.merchant}  $${t.amount.toFixed(2)}  [${t.category}${t.source ? ' · '+t.source : ''}]`));
-  } else {
-    lines.push('  No matching transactions.');
+  if(Object.keys(cats).length > 1){
+    doc.setFontSize(11);
+    doc.text('By category:', 14, y); y += 6;
+    doc.setFontSize(10);
+    Object.entries(cats).forEach(([c,a])=>{
+      if(y > pageHeight - 20){ doc.addPage(); y = 20; }
+      doc.text(`  ${c}: $${a.toFixed(2)}`, 14, y); y += 6;
+    });
+    y += 4;
   }
 
-  lastSearchResultText = lines.join('\n');
-  document.getElementById('searchResultText').textContent = lastSearchResultText;
-  document.getElementById('searchResult').style.display = 'block';
-}
-function copySearchResult(){
-  if(!lastSearchResultText) return;
-  navigator.clipboard.writeText(lastSearchResultText).then(()=>showToast('Copied to clipboard')).catch(()=>{
-    prompt('Copy this:', lastSearchResultText);
-  });
-}
-function emailSearchResult(){
-  if(!lastSearchResultText) return;
-  const subject = encodeURIComponent('Spend Radar — Search results');
-  const body = encodeURIComponent(lastSearchResultText);
-  window.location.href = `mailto:?subject=${subject}&body=${body}`;
-}
-function textSearchResult(){
-  if(!lastSearchResultText) return;
-  const body = encodeURIComponent(lastSearchResultText);
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const sep = isIOS ? '&' : '?';
-  window.location.href = `sms:${sep}body=${body}`;
+  doc.setFontSize(11);
+  doc.text(`Transactions (${results.length}):`, 14, y); y += 8;
+  doc.setFontSize(9);
+  results
+    .sort((a,b)=> a.date < b.date ? 1 : -1)
+    .forEach(t=>{
+      if(y > pageHeight - 20){ doc.addPage(); y = 20; }
+      const line = `${t.date}   ${t.merchant}   $${t.amount.toFixed(2)}   [${t.category}${t.source ? ' · '+t.source : ''}]`;
+      doc.text(line, 14, y);
+      y += 6;
+    });
+
+  doc.save(`spend-radar-${toISO(new Date())}.pdf`);
+  showToast(`Downloaded PDF with ${results.length} transaction(s)`);
 }
 
 // ---------- toast ----------
