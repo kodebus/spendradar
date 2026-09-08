@@ -52,6 +52,12 @@
   .cat-bar-track{height:8px;background:#EEF2F6;border-radius:5px;overflow:hidden;}
   .cat-bar-fill{height:100%;background:var(--teal);border-radius:5px;}
   .cat-amt{font-family:var(--mono);font-size:12.5px;text-align:right;}
+  .sidebar-chart{padding:0 10px;}
+  .sidebar-chart .cat-row{grid-template-columns:1fr;gap:2px;margin-bottom:10px;}
+  .sidebar-chart .cat-name{font-size:11px;}
+  .sidebar-chart .cat-bar-track{height:5px;}
+  .sidebar-chart .cat-amt{font-size:10.5px;text-align:left;color:var(--ink-soft);}
+  .sidebar-chart .empty-state{font-size:11px;padding:0;text-align:left;color:var(--ink-soft);}
 
   .actions-row{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
 
@@ -158,6 +164,9 @@
       <span class="nav-sub">📋 Paste transactions</span>
       <span class="nav-via">through pasting transactions</span>
     </button>
+
+    <div class="sidebar-title" style="margin-top:22px;">This Cycle</div>
+    <div id="categoryBreakdown" class="sidebar-chart"></div>
   </aside>
 
   <div class="wrap">
@@ -191,19 +200,19 @@
     <div id="searchStatus" style="font-size:12.5px;color:var(--ink-soft);"></div>
   </div>
 
-  <div class="card summary-card" style="margin-bottom:16px;">
-    <h2>By category (current cycle)</h2>
-    <div id="categoryBreakdown"></div>
-  </div>
-
   <div class="card" id="summaryCard" style="margin-bottom:16px;">
-    <div id="summaryContent"></div>
-    <div class="field" style="margin:14px 0 12px;max-width:220px;">
-      <label>Limit for this report (optional)</label>
-      <input type="number" id="pdfLimit" placeholder="e.g. 400">
-    </div>
-    <div class="panel-buttons" style="margin-top:0;justify-content:flex-start;">
-      <button class="btn-sm primary" onclick="downloadSearchPDF()">📄 Download PDF</button>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+      <div id="summaryContent" style="flex:1;min-width:200px;"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:170px;">
+        <div class="field" style="margin:0;">
+          <label>Limit for this report (optional)</label>
+          <div style="position:relative;">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:14px;pointer-events:none;">$</span>
+            <input type="text" inputmode="decimal" id="pdfLimit" placeholder="0.00" style="padding-left:22px;width:100%;" oninput="formatCurrencyInput(this)" onblur="formatCurrencyBlur(this)">
+          </div>
+        </div>
+        <button class="btn-sm primary" onclick="downloadSearchPDF()" style="align-self:flex-start;">📄 Download PDF</button>
+      </div>
     </div>
   </div>
 
@@ -957,6 +966,18 @@ function clearSearch(){
   render();
 }
 
+function formatCurrencyInput(el){
+  let v = el.value.replace(/[^0-9.]/g, '');
+  const parts = v.split('.');
+  if(parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
+  el.value = v;
+}
+function formatCurrencyBlur(el){
+  const num = parseFloat(el.value.replace(/,/g, ''));
+  if(isNaN(num)){ el.value = ''; return; }
+  el.value = num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function downloadSearchPDF(){
   const results = state.transactions.filter(t => matchesFilter(t, activeFilter));
   if(!results.length) return showToast('No transactions match to export');
@@ -976,7 +997,7 @@ function downloadSearchPDF(){
   doc.setFontSize(12);
   doc.text(`Total: $${spent.toFixed(2)}`, 14, y); y += 8;
 
-  const limitRaw = document.getElementById('pdfLimit').value.trim();
+  const limitRaw = document.getElementById('pdfLimit').value.trim().replace(/,/g, '');
   if(limitRaw !== ''){
     const limitVal = parseFloat(limitRaw);
     if(!isNaN(limitVal)){
@@ -1006,7 +1027,7 @@ function downloadSearchPDF(){
     head: [['Date', 'Merchant', 'Category', 'Source', 'Amount']],
     body: body,
     startY: y + 2,
-    styles: { fontSize: 8, cellPadding: 3 },
+    styles: { fontSize: 8, cellPadding: 1.5 },
     headStyles: { fillColor: false, textColor: [31, 111, 107], fontStyle: 'bold', fontSize: 11 },
     columnStyles: { 4: { halign: 'right' } },
     alternateRowStyles: { fillColor: [246, 248, 251] }
