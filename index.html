@@ -102,6 +102,9 @@
   .tx-card h2{font-family:var(--display);font-size:16px;font-weight:600;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
   .tx-card h2 button{font-family:var(--body);font-size:12.5px;font-weight:500;color:var(--teal);background:none;border:none;cursor:pointer;}
   .tx-row{display:grid;grid-template-columns:80px 1fr 100px 90px 30px;gap:10px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .tx-row.tx-header{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-soft);font-weight:600;padding-top:0;padding-bottom:8px;}
+  .tx-row.tx-header > div{cursor:pointer;user-select:none;}
+  .tx-row.tx-header > div:hover{color:var(--teal);}
   .tx-row:last-child{border-bottom:none;}
   .tx-date{font-family:var(--mono);font-size:12px;color:var(--ink-soft);}
   .tx-cat{font-size:11px;font-family:var(--mono);color:var(--teal-dark);background:var(--teal-light);padding:2px 8px;border-radius:6px;justify-self:start;}
@@ -777,15 +780,45 @@ function render(){
   `).join('') : '<div class="empty-state">No transactions this cycle yet.</div>';
 
   const txDiv = document.getElementById('txList');
-  txDiv.innerHTML = state.transactions.length ? state.transactions.map((t,i)=>`
+  const indexed = state.transactions.map((t,i)=>({...t, _idx:i}));
+  indexed.sort((a,b)=>{
+    let av, bv;
+    if(txSort.field === 'amount'){ av = a.amount; bv = b.amount; }
+    else { av = (a[txSort.field]||'').toString().toLowerCase(); bv = (b[txSort.field]||'').toString().toLowerCase(); }
+    if(av < bv) return txSort.dir==='asc' ? -1 : 1;
+    if(av > bv) return txSort.dir==='asc' ? 1 : -1;
+    return 0;
+  });
+  const arrow = f => txSort.field===f ? (txSort.dir==='asc' ? ' ▲' : ' ▼') : '';
+  const header = `
+    <div class="tx-row tx-header">
+      <div onclick="setSort('date')">Date${arrow('date')}</div>
+      <div onclick="setSort('merchant')">Merchant${arrow('merchant')}</div>
+      <div onclick="setSort('category')">Category${arrow('category')}</div>
+      <div onclick="setSort('amount')" style="text-align:right;">Amount${arrow('amount')}</div>
+      <div></div>
+    </div>
+  `;
+  txDiv.innerHTML = header + (indexed.length ? indexed.map(t=>`
     <div class="tx-row">
       <div class="tx-date">${t.date}</div>
       <div>${escapeHtml(t.merchant)}${t.source ? `<div class="tx-source">${escapeHtml(t.source)}</div>` : ''}</div>
       <div class="tx-cat">${t.category}</div>
       <div class="tx-amt">$${t.amount.toFixed(2)}</div>
-      <button class="tx-del" onclick="deleteTx(${i})" title="Delete">✕</button>
+      <button class="tx-del" onclick="deleteTx(${t._idx})" title="Delete">✕</button>
     </div>
-  `).join('') : '<div class="empty-state">No transactions yet — import a CSV or paste text above.</div>';
+  `).join('') : '<div class="empty-state">No transactions yet — import a CSV or paste text above.</div>');
+}
+
+let txSort = { field: 'date', dir: 'desc' };
+function setSort(field){
+  if(txSort.field === field){
+    txSort.dir = txSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    txSort.field = field;
+    txSort.dir = (field === 'amount' || field === 'date') ? 'desc' : 'asc';
+  }
+  render();
 }
 
 const MANUAL_SOURCES = ['CSV upload', 'Pasted transactions'];
