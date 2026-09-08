@@ -781,9 +781,8 @@ function render(){
   const cats = {};
   cycleTx.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
   const maxCat = Math.max(...Object.values(cats), 1);
-  const order = ['Gas','Food','Shopping','Entertainment','Other'];
   const catDiv = document.getElementById('categoryBreakdown');
-  const present = order.filter(c=>cats[c]);
+  const present = Object.keys(cats).sort((a,b)=>a.localeCompare(b));
   catDiv.innerHTML = present.length ? present.map(c=>`
     <div class="cat-row">
       <div class="cat-name">${c}</div>
@@ -840,7 +839,7 @@ function render(){
     summaryContent.innerHTML = `
       <div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;">${escapeHtml(filterDescription(activeFilter))}</div>
       <div style="font-family:var(--display);font-size:18px;font-weight:600;margin-bottom:${Object.keys(summaryCats).length ? '10px' : '0'};">Total: $${summarySpent.toFixed(2)}</div>
-      ${Object.keys(summaryCats).length ? `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-soft);">${Object.entries(summaryCats).map(([c,a])=>`<span><strong style="color:var(--ink);">${escapeHtml(c)}:</strong> $${a.toFixed(2)}</span>`).join('')}</div>` : ''}
+      ${Object.keys(summaryCats).length ? `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-soft);">${Object.entries(summaryCats).sort((a,b)=>a[0].localeCompare(b[0])).map(([c,a])=>`<span><strong style="color:var(--ink);">${escapeHtml(c)}:</strong> $${a.toFixed(2)}</span>`).join('')}</div>` : ''}
     `;
   }
   updateRemainingDisplay();
@@ -965,7 +964,13 @@ function getScopedTransactions(){
   return state.transactions.filter(t => inCurrentCycle(t));
 }
 function filterDescription(filter){
-  if(!filter) return state.cycleDay ? `Current cycle starting from the ${ordinal(state.cycleDay)}` : 'Current cycle';
+  if(!filter){
+    if(!state.cycleDay) return 'Current cycle';
+    const startISO = getCycleStartISO();
+    const d = new Date(startISO + 'T00:00:00');
+    const dateStr = d.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+    return `Current cycle — starting ${dateStr} (based on your Cycle reset day setting)`;
+  }
   const parts = [];
   if(filter.from || filter.to) parts.push(`${filter.from||'any date'} to ${filter.to||'any date'}`);
   if(filter.category) parts.push(`category: ${filter.category}`);
@@ -1064,7 +1069,7 @@ function downloadSearchPDF(){
   if(Object.keys(cats).length > 1){
     doc.setFontSize(9);
     doc.setTextColor(90);
-    const catLine = Object.entries(cats).map(([c,a])=>`${c}: $${a.toFixed(2)}`).join('    ·    ');
+    const catLine = Object.entries(cats).sort((a,b)=>a[0].localeCompare(b[0])).map(([c,a])=>`${c}: $${a.toFixed(2)}`).join('    ·    ');
     doc.text(catLine, 14, y); y += 8;
     doc.setTextColor(0);
   }
@@ -1103,6 +1108,17 @@ async function initApp(){
   }
   render();
   checkBankStatus();
+  prefillSearchDatesToCycle();
+}
+
+function prefillSearchDatesToCycle(){
+  if(!state.transactions.length) return;
+  const fromEl = document.getElementById('searchFrom');
+  const toEl = document.getElementById('searchTo');
+  if(!fromEl || !toEl) return;
+  if(fromEl.value || toEl.value) return; // don't clobber anything already set
+  fromEl.value = getCycleStartISO();
+  toEl.value = toISO(new Date());
 }
 
 async function checkBankStatus(){
