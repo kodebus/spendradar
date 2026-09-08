@@ -254,7 +254,7 @@
   </div>
 
   <div class="card tx-card">
-    <h2><span id="txHeading">Transactions</span> <span><button onclick="exportTransactionsCSV()" style="margin-right:14px;">Export CSV</button><button onclick="clearAll()">Clear all</button></span></h2>
+    <h2><span id="txHeading">Transactions</span> <span><button onclick="exportTransactionsCSV()" style="margin-right:14px;">Export CSV</button><button id="clearAllBtn" onclick="clearAll()">Clear</button></span></h2>
     <div id="txList"></div>
   </div>
 
@@ -569,6 +569,7 @@ async function connectBank(){
         setBankStatus('Linking account…');
         try{
           const institutionName = metadata?.institution?.name || 'Bank';
+          const institutionId = metadata?.institution?.institution_id || '';
           const mask = metadata?.accounts?.[0]?.mask || '';
           const exchangeRes = await fetch('/api/exchange-public-token', {
             method:'POST',
@@ -576,7 +577,7 @@ async function connectBank(){
               'Content-Type':'application/json',
               'x-app-secret': state.appSecret
             },
-            body: JSON.stringify({ public_token, institution_name: institutionName, mask })
+            body: JSON.stringify({ public_token, institution_name: institutionName, institution_id: institutionId, mask })
           });
           if(!exchangeRes.ok){
             const body = await exchangeRes.json().catch(()=>({}));
@@ -839,6 +840,8 @@ function render(){
   if(heading) heading.textContent = activeFilter ? `Transactions (${indexed.length} matching)` : `Transactions (current cycle: ${indexed.length})`;
   const searchStatus = document.getElementById('searchStatus');
   if(searchStatus) searchStatus.textContent = activeFilter ? `Filtering the list below to: ${filterDescription(activeFilter)}` : '';
+  const clearBtn = document.getElementById('clearAllBtn');
+  if(clearBtn) clearBtn.textContent = activeFilter ? `Clear ${indexed.length} shown` : `Clear ${indexed.length} (this cycle)`;
 
   const summarySpent = indexed.reduce((s,t)=>s+t.amount,0);
   currentSummarySpent = summarySpent;
@@ -883,8 +886,12 @@ function deleteTx(i){
   render();
 }
 function clearAll(){
-  if(!confirm('Remove all transactions? This cannot be undone.')) return;
-  state.transactions = [];
+  const inScope = t => activeFilter ? matchesFilter(t, activeFilter) : inCurrentCycle(t);
+  const count = state.transactions.filter(inScope).length;
+  if(!count) return showToast('Nothing shown right now to remove');
+  const label = activeFilter ? 'matching your current search' : 'in the current cycle';
+  if(!confirm(`Remove ${count} transaction(s) ${label}? This cannot be undone. Transactions outside this view won't be touched.`)) return;
+  state.transactions = state.transactions.filter(t => !inScope(t));
   txDisplayLimit = 15;
   save();
   render();
