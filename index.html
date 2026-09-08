@@ -369,6 +369,7 @@ async function saveSettings(){
     state.cycleDay = formCycleDay;
   }
 
+  txDisplayLimit = 15;
   save();
   closeSettings();
   render();
@@ -964,7 +965,7 @@ function getScopedTransactions(){
   return state.transactions.filter(t => inCurrentCycle(t));
 }
 function filterDescription(filter){
-  if(!filter) return 'Current cycle';
+  if(!filter) return state.cycleDay ? `Current cycle starting from the ${ordinal(state.cycleDay)}` : 'Current cycle';
   const parts = [];
   if(filter.from || filter.to) parts.push(`${filter.from||'any date'} to ${filter.to||'any date'}`);
   if(filter.category) parts.push(`category: ${filter.category}`);
