@@ -794,7 +794,7 @@ function render(){
   const txDiv = document.getElementById('txList');
   const indexed = state.transactions
     .map((t,i)=>({...t, _idx:i}))
-    .filter(t => matchesFilter(t, activeFilter));
+    .filter(t => activeFilter ? matchesFilter(t, activeFilter) : inCurrentCycle(t));
   indexed.sort((a,b)=>{
     let av, bv;
     if(txSort.field === 'amount'){ av = a.amount; bv = b.amount; }
@@ -822,11 +822,11 @@ function render(){
       <div class="tx-amt">$${t.amount.toFixed(2)}</div>
       <button class="tx-del" onclick="deleteTx(${t._idx})" title="Delete">✕</button>
     </div>
-  `).join('') : `<div class="empty-state">${activeFilter ? 'No transactions match this search.' : 'No transactions yet — import a CSV or paste text above.'}</div>`)
+  `).join('') : `<div class="empty-state">${emptyStateMessage(indexed.length, activeFilter)}</div>`)
   + (indexed.length > txDisplayLimit ? `<div style="text-align:center;padding:12px 0 4px;"><button onclick="showMoreTx()" style="background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:500;cursor:pointer;">Show more (${indexed.length - txDisplayLimit} remaining)</button></div>` : '');
 
   const heading = document.getElementById('txHeading');
-  if(heading) heading.textContent = activeFilter ? `Transactions (${indexed.length} matching)` : 'Transactions';
+  if(heading) heading.textContent = activeFilter ? `Transactions (${indexed.length} matching)` : `Transactions (current cycle: ${indexed.length})`;
   const searchStatus = document.getElementById('searchStatus');
   if(searchStatus) searchStatus.textContent = activeFilter ? `Filtering the list below to: ${filterDescription(activeFilter)}` : '';
 
@@ -948,8 +948,23 @@ function matchesFilter(t, filter){
   if(filter.source && t.source !== filter.source) return false;
   return true;
 }
+function emptyStateMessage(shownCount, filter){
+  if(shownCount > 0) return '';
+  if(state.transactions.length === 0) return 'No transactions yet — import a CSV or paste text above.';
+  if(filter) return 'No transactions match this search.';
+  return 'No transactions in the current cycle. Use Search above to view a wider date range.';
+}
+function inCurrentCycle(t){
+  const startISO = getCycleStartISO();
+  const todayISO = toISO(new Date());
+  return t.date >= startISO && t.date <= todayISO;
+}
+function getScopedTransactions(){
+  if(activeFilter) return state.transactions.filter(t => matchesFilter(t, activeFilter));
+  return state.transactions.filter(t => inCurrentCycle(t));
+}
 function filterDescription(filter){
-  if(!filter) return 'All transactions';
+  if(!filter) return 'Current cycle';
   const parts = [];
   if(filter.from || filter.to) parts.push(`${filter.from||'any date'} to ${filter.to||'any date'}`);
   if(filter.category) parts.push(`category: ${filter.category}`);
@@ -1012,7 +1027,7 @@ function formatCurrencyBlur(el){
 }
 
 function downloadSearchPDF(){
-  const results = state.transactions.filter(t => matchesFilter(t, activeFilter));
+  const results = getScopedTransactions();
   if(!results.length) return showToast('No transactions match to export');
 
   const { jsPDF } = window.jspdf;
