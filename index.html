@@ -165,25 +165,37 @@
   <div class="card connection-card" id="connectionCard"></div>
   <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:0 0 20px;"></div>
 
-  <div class="card" id="rangePanel" style="margin-bottom:24px;">
-    <h3 style="font-family:var(--display);font-size:15px;font-weight:600;margin-bottom:14px;">Run a report for a date range</h3>
+  <div class="card" id="searchPanel" style="margin-bottom:24px;">
+    <h3 style="font-family:var(--display);font-size:15px;font-weight:600;margin-bottom:14px;">Search transactions</h3>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
       <div class="field" style="margin:0;">
         <label>From</label>
-        <input type="date" id="rangeFrom">
+        <input type="date" id="searchFrom">
       </div>
       <div class="field" style="margin:0;">
         <label>To</label>
-        <input type="date" id="rangeTo">
+        <input type="date" id="searchTo">
       </div>
-      <button class="btn-sm primary" onclick="runRangeReport()">Run report</button>
+      <div class="field" style="margin:0;">
+        <label>Category</label>
+        <select id="searchCategory" style="padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--body);font-size:14px;background:white;">
+          <option value="">All categories</option>
+        </select>
+      </div>
+      <div class="field" style="margin:0;">
+        <label>Brought in via</label>
+        <select id="searchSource" style="padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:var(--body);font-size:14px;background:white;">
+          <option value="">All sources</option>
+        </select>
+      </div>
+      <button class="btn-sm primary" onclick="runSearch()">Search</button>
     </div>
-    <div id="rangeResult" style="display:none;">
-      <pre id="rangeResultText" style="white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;"></pre>
+    <div id="searchResult" style="display:none;">
+      <pre id="searchResultText" style="white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;"></pre>
       <div class="panel-buttons" style="margin-top:0;">
-        <button class="btn-sm" onclick="copyRangeReport()">Copy</button>
-        <button class="btn-sm" onclick="emailRangeReport()">✉️ Email</button>
-        <button class="btn-sm" onclick="textRangeReport()">💬 Text</button>
+        <button class="btn-sm" onclick="copySearchResult()">Copy</button>
+        <button class="btn-sm" onclick="emailSearchResult()">✉️ Email</button>
+        <button class="btn-sm" onclick="textSearchResult()">💬 Text</button>
       </div>
     </div>
   </div>
@@ -746,6 +758,7 @@ function renderConnectionCard(){
 
 function render(){
   renderConnectionCard();
+  populateSearchFilters();
 
   const cycleTx = currentCycleSpend();
 
@@ -830,60 +843,90 @@ function escapeHtml(str){
   return (str||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// ---------- copy report ----------
-// ---------- custom date-range report ----------
-let lastRangeReportText = '';
-function runRangeReport(){
-  const fromRaw = document.getElementById('rangeFrom').value;
-  const toRaw = document.getElementById('rangeTo').value;
-  if(!fromRaw || !toRaw) return showToast('Pick both a from and to date');
-  if(fromRaw > toRaw) return showToast('The "From" date has to be before the "To" date');
+// ---------- transaction search ----------
+let lastSearchResultText = '';
 
-  const rangeTx = state.transactions
-    .filter(t => t.date >= fromRaw && t.date <= toRaw)
+function populateSearchFilters(){
+  const catSelect = document.getElementById('searchCategory');
+  const srcSelect = document.getElementById('searchSource');
+  if(!catSelect || !srcSelect) return;
+
+  const prevCat = catSelect.value;
+  const prevSrc = srcSelect.value;
+
+  const categories = [...new Set(state.transactions.map(t=>t.category).filter(Boolean))].sort();
+  const sources = [...new Set(state.transactions.map(t=>t.source).filter(Boolean))].sort();
+
+  catSelect.innerHTML = '<option value="">All categories</option>' +
+    categories.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  srcSelect.innerHTML = '<option value="">All sources</option>' +
+    sources.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+
+  if(categories.includes(prevCat)) catSelect.value = prevCat;
+  if(sources.includes(prevSrc)) srcSelect.value = prevSrc;
+}
+
+function runSearch(){
+  const fromRaw = document.getElementById('searchFrom').value;
+  const toRaw = document.getElementById('searchTo').value;
+  const category = document.getElementById('searchCategory').value;
+  const source = document.getElementById('searchSource').value;
+
+  if(fromRaw && toRaw && fromRaw > toRaw) return showToast('The "From" date has to be before the "To" date');
+
+  const results = state.transactions
+    .filter(t => !fromRaw || t.date >= fromRaw)
+    .filter(t => !toRaw || t.date <= toRaw)
+    .filter(t => !category || t.category === category)
+    .filter(t => !source || t.source === source)
     .sort((a,b)=> a.date < b.date ? 1 : -1);
 
-  const spent = rangeTx.reduce((s,t)=>s+t.amount,0);
+  const spent = results.reduce((s,t)=>s+t.amount,0);
   const cats = {};
-  rangeTx.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
+  results.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
+
+  const filterDesc = [];
+  if(fromRaw || toRaw) filterDesc.push(`${fromRaw||'any date'} to ${toRaw||'any date'}`);
+  if(category) filterDesc.push(`category: ${category}`);
+  if(source) filterDesc.push(`via: ${source}`);
 
   let lines = [];
-  lines.push(`Spend Radar${state.name ? ' — '+state.name : ''}`);
-  lines.push(`Report: ${fromRaw} to ${toRaw}`);
+  lines.push('Spend Radar — Search results');
+  lines.push(filterDesc.length ? filterDesc.join(' · ') : 'All transactions');
   lines.push('');
-  lines.push(`Total spent: $${spent.toFixed(2)}`);
+  lines.push(`Total: $${spent.toFixed(2)}`);
   lines.push('');
-  if(Object.keys(cats).length){
+  if(!category && Object.keys(cats).length > 1){
     lines.push('By category:');
     Object.entries(cats).forEach(([c,a])=> lines.push(`  ${c}: $${a.toFixed(2)}`));
     lines.push('');
   }
-  lines.push(`Transactions (${rangeTx.length}):`);
-  if(rangeTx.length){
-    rangeTx.forEach(t=> lines.push(`  ${t.date}  ${t.merchant}  $${t.amount.toFixed(2)}`));
+  lines.push(`Transactions (${results.length}):`);
+  if(results.length){
+    results.forEach(t=> lines.push(`  ${t.date}  ${t.merchant}  $${t.amount.toFixed(2)}  [${t.category}${t.source ? ' · '+t.source : ''}]`));
   } else {
-    lines.push('  None found in this range.');
+    lines.push('  No matching transactions.');
   }
 
-  lastRangeReportText = lines.join('\n');
-  document.getElementById('rangeResultText').textContent = lastRangeReportText;
-  document.getElementById('rangeResult').style.display = 'block';
+  lastSearchResultText = lines.join('\n');
+  document.getElementById('searchResultText').textContent = lastSearchResultText;
+  document.getElementById('searchResult').style.display = 'block';
 }
-function copyRangeReport(){
-  if(!lastRangeReportText) return;
-  navigator.clipboard.writeText(lastRangeReportText).then(()=>showToast('Report copied to clipboard')).catch(()=>{
-    prompt('Copy this report:', lastRangeReportText);
+function copySearchResult(){
+  if(!lastSearchResultText) return;
+  navigator.clipboard.writeText(lastSearchResultText).then(()=>showToast('Copied to clipboard')).catch(()=>{
+    prompt('Copy this:', lastSearchResultText);
   });
 }
-function emailRangeReport(){
-  if(!lastRangeReportText) return;
-  const subject = encodeURIComponent(`Spend Radar Report${state.name ? ' — '+state.name : ''}`);
-  const body = encodeURIComponent(lastRangeReportText);
+function emailSearchResult(){
+  if(!lastSearchResultText) return;
+  const subject = encodeURIComponent('Spend Radar — Search results');
+  const body = encodeURIComponent(lastSearchResultText);
   window.location.href = `mailto:?subject=${subject}&body=${body}`;
 }
-function textRangeReport(){
-  if(!lastRangeReportText) return;
-  const body = encodeURIComponent(lastRangeReportText);
+function textSearchResult(){
+  if(!lastSearchResultText) return;
+  const body = encodeURIComponent(lastSearchResultText);
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const sep = isIOS ? '&' : '?';
   window.location.href = `sms:${sep}body=${body}`;
