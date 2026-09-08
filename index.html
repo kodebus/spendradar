@@ -201,17 +201,18 @@
   </div>
 
   <div class="card" id="summaryCard" style="margin-bottom:16px;">
-    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
-      <div id="summaryContent" style="flex:1;min-width:200px;"></div>
-      <div style="display:flex;flex-direction:column;gap:8px;min-width:170px;">
-        <div class="field" style="margin:0;">
-          <label>Limit for this report (optional)</label>
-          <div style="position:relative;">
-            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:14px;pointer-events:none;">$</span>
-            <input type="text" inputmode="decimal" id="pdfLimit" placeholder="0.00" style="padding-left:22px;width:100%;" oninput="formatCurrencyInput(this)" onblur="formatCurrencyBlur(this)">
-          </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
+      <div id="summaryContent" style="flex:1;min-width:180px;"></div>
+      <div style="display:flex;flex-direction:column;gap:6px;min-width:160px;">
+        <label style="font-size:11px;font-weight:500;color:var(--ink-soft);">Limits (optional)</label>
+        <div style="position:relative;">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:14px;pointer-events:none;">$</span>
+          <input type="text" inputmode="decimal" id="pdfLimit" placeholder="0.00" style="padding-left:22px;width:100%;" oninput="formatCurrencyInput(this); updateRemainingDisplay();" onblur="formatCurrencyBlur(this); updateRemainingDisplay();">
         </div>
-        <button class="btn-sm primary" onclick="downloadSearchPDF()" style="align-self:flex-start;">📄 Download PDF</button>
+        <div id="remainingDisplay" style="font-size:12.5px;font-weight:600;display:none;"></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;min-width:130px;">
+        <button class="btn-sm primary" onclick="downloadSearchPDF()">📄 Download PDF</button>
       </div>
     </div>
   </div>
@@ -720,6 +721,7 @@ function confirmReview(){
   const skippedCount = pendingReview.length - newOnes.length;
   state.transactions.push(...newOnes.map(({dup, selected, ...rest})=>rest));
   state.transactions.sort((a,b)=> a.date < b.date ? 1 : -1);
+  txDisplayLimit = 15;
   save();
   render();
   document.getElementById('reviewPanel').classList.remove('open');
@@ -811,7 +813,8 @@ function render(){
       <div></div>
     </div>
   `;
-  txDiv.innerHTML = header + (indexed.length ? indexed.map(t=>`
+  const visible = indexed.slice(0, txDisplayLimit);
+  txDiv.innerHTML = header + (visible.length ? visible.map(t=>`
     <div class="tx-row">
       <div class="tx-date">${t.date}</div>
       <div>${escapeHtml(t.merchant)}${t.source ? `<div class="tx-source">${escapeHtml(t.source)}</div>` : ''}</div>
@@ -819,7 +822,8 @@ function render(){
       <div class="tx-amt">$${t.amount.toFixed(2)}</div>
       <button class="tx-del" onclick="deleteTx(${t._idx})" title="Delete">✕</button>
     </div>
-  `).join('') : `<div class="empty-state">${activeFilter ? 'No transactions match this search.' : 'No transactions yet — import a CSV or paste text above.'}</div>`);
+  `).join('') : `<div class="empty-state">${activeFilter ? 'No transactions match this search.' : 'No transactions yet — import a CSV or paste text above.'}</div>`)
+  + (indexed.length > txDisplayLimit ? `<div style="text-align:center;padding:12px 0 4px;"><button onclick="showMoreTx()" style="background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:500;cursor:pointer;">Show more (${indexed.length - txDisplayLimit} remaining)</button></div>` : '');
 
   const heading = document.getElementById('txHeading');
   if(heading) heading.textContent = activeFilter ? `Transactions (${indexed.length} matching)` : 'Transactions';
@@ -827,6 +831,7 @@ function render(){
   if(searchStatus) searchStatus.textContent = activeFilter ? `Filtering the list below to: ${filterDescription(activeFilter)}` : '';
 
   const summarySpent = indexed.reduce((s,t)=>s+t.amount,0);
+  currentSummarySpent = summarySpent;
   const summaryCats = {};
   indexed.forEach(t=>{ summaryCats[t.category] = (summaryCats[t.category]||0) + t.amount; });
   const summaryContent = document.getElementById('summaryContent');
@@ -837,9 +842,15 @@ function render(){
       ${Object.keys(summaryCats).length ? `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-soft);">${Object.entries(summaryCats).map(([c,a])=>`<span><strong style="color:var(--ink);">${escapeHtml(c)}:</strong> $${a.toFixed(2)}</span>`).join('')}</div>` : ''}
     `;
   }
+  updateRemainingDisplay();
 }
 
 let txSort = { field: 'date', dir: 'desc' };
+let txDisplayLimit = 15;
+function showMoreTx(){
+  txDisplayLimit += 15;
+  render();
+}
 function setSort(field){
   if(txSort.field === field){
     txSort.dir = txSort.dir === 'asc' ? 'desc' : 'asc';
@@ -864,6 +875,7 @@ function deleteTx(i){
 function clearAll(){
   if(!confirm('Remove all transactions? This cannot be undone.')) return;
   state.transactions = [];
+  txDisplayLimit = 15;
   save();
   render();
 }
@@ -955,6 +967,7 @@ function runSearch(){
 
   const hasAnyFilter = fromRaw || toRaw || category || source;
   activeFilter = hasAnyFilter ? { from: fromRaw, to: toRaw, category, source } : null;
+  txDisplayLimit = 15;
   render();
 }
 function clearSearch(){
@@ -963,7 +976,25 @@ function clearSearch(){
   document.getElementById('searchTo').value = '';
   document.getElementById('searchCategory').value = '';
   document.getElementById('searchSource').value = '';
+  txDisplayLimit = 15;
   render();
+}
+
+let currentSummarySpent = 0;
+function updateRemainingDisplay(){
+  const el = document.getElementById('remainingDisplay');
+  const input = document.getElementById('pdfLimit');
+  if(!el || !input) return;
+  const raw = input.value.trim().replace(/,/g, '');
+  if(raw === '' || isNaN(parseFloat(raw))){
+    el.style.display = 'none';
+    return;
+  }
+  const limitVal = parseFloat(raw);
+  const remaining = limitVal - currentSummarySpent;
+  el.style.display = 'block';
+  el.style.color = remaining < 0 ? 'var(--red)' : 'var(--teal)';
+  el.textContent = `Remaining (limit $${limitVal.toFixed(2)}): $${remaining.toFixed(2)}${remaining < 0 ? ' over' : ''}`;
 }
 
 function formatCurrencyInput(el){
