@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --bg:#F6F8FB;
@@ -30,7 +31,7 @@
   body{background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.5;padding-bottom:60px;}
   a{color:inherit;}
 
-  nav{display:flex;align-items:center;justify-content:space-between;padding:18px 32px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;flex-wrap:wrap;gap:10px;}
+  nav{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20;flex-wrap:wrap;gap:10px;}
   .nav-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .nav-left{display:flex;align-items:center;gap:14px;}
   .nav-back{font-family:var(--mono);font-size:12px;color:var(--ink-soft);text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:8px;transition:.15s;}
@@ -41,9 +42,9 @@
   .settings-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-family:var(--body);font-size:13px;font-weight:500;color:var(--ink-soft);cursor:pointer;transition:.15s;}
   .settings-btn:hover{border-color:var(--teal);color:var(--teal);}
 
-  .wrap{max-width:960px;margin:0 auto;padding:36px 24px 0;}
+  .wrap{max-width:960px;margin:0 auto;padding:20px 24px 0;}
 
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;}
 
   .summary-card h2{font-family:var(--display);font-size:16px;font-weight:600;margin-bottom:16px;}
   .cat-row{display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:12px;margin-bottom:12px;}
@@ -55,7 +56,7 @@
   .actions-row{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
 
   .app-shell{display:flex;max-width:1180px;margin:0 auto;align-items:flex-start;}
-  .sidebar{width:210px;flex-shrink:0;padding:36px 12px 24px 24px;position:sticky;top:66px;}
+  .sidebar{width:210px;flex-shrink:0;padding:20px 12px 20px 24px;position:sticky;top:56px;}
   .sidebar-title{font-family:var(--display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin:0 0 8px 10px;}
   .nav-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:9px 10px;cursor:pointer;margin-bottom:2px;font-family:var(--body);transition:.15s;}
   .nav-item:hover{background:var(--teal-light);}
@@ -78,7 +79,7 @@
   .action-btn.primary{background:var(--teal);color:white;border-color:var(--teal);}
   .action-btn.primary:hover{background:var(--teal-dark);}
 
-  .panel{display:none;margin-bottom:24px;}
+  .panel{display:none;margin-bottom:16px;}
   .panel.open{display:block;}
   .panel h3{font-family:var(--display);font-size:15px;font-weight:600;margin-bottom:14px;}
   .panel textarea{width:100%;min-height:140px;border:1px solid var(--border);border-radius:10px;padding:12px;font-family:var(--mono);font-size:12.5px;resize:vertical;}
@@ -161,15 +162,15 @@
 
   <div class="wrap">
 
-  <div class="card summary-card" style="margin-bottom:24px;">
+  <div class="card summary-card" style="margin-bottom:16px;">
     <h2>By category (current cycle)</h2>
     <div id="categoryBreakdown"></div>
   </div>
 
-  <div class="card connection-card" id="connectionCard"></div>
-  <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:0 0 20px;"></div>
+  <div class="card connection-card" id="connectionCard" style="margin-bottom:10px;"></div>
+  <div id="bankStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);margin:0 0 12px;"></div>
 
-  <div class="card" id="searchPanel" style="margin-bottom:24px;">
+  <div class="card" id="searchPanel" style="margin-bottom:16px;">
     <h3 style="font-family:var(--display);font-size:15px;font-weight:600;margin-bottom:14px;">Search transactions</h3>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
       <div class="field" style="margin:0;">
@@ -235,6 +236,10 @@
   <div class="card tx-card">
     <h2><span id="txHeading">Transactions</span> <span><button onclick="exportTransactionsCSV()" style="margin-right:14px;">Export CSV</button><button onclick="clearAll()">Clear all</button></span></h2>
     <div id="txList"></div>
+  </div>
+
+  <div class="card" id="summaryCard" style="margin-top:16px;">
+    <div id="summaryContent"></div>
   </div>
 
   </div>
@@ -811,6 +816,18 @@ function render(){
   if(heading) heading.textContent = activeFilter ? `Transactions (${indexed.length} matching)` : 'Transactions';
   const searchStatus = document.getElementById('searchStatus');
   if(searchStatus) searchStatus.textContent = activeFilter ? `Filtering the list below to: ${filterDescription(activeFilter)}` : '';
+
+  const summarySpent = indexed.reduce((s,t)=>s+t.amount,0);
+  const summaryCats = {};
+  indexed.forEach(t=>{ summaryCats[t.category] = (summaryCats[t.category]||0) + t.amount; });
+  const summaryContent = document.getElementById('summaryContent');
+  if(summaryContent){
+    summaryContent.innerHTML = `
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;">${escapeHtml(filterDescription(activeFilter))}</div>
+      <div style="font-family:var(--display);font-size:18px;font-weight:600;margin-bottom:${Object.keys(summaryCats).length ? '10px' : '0'};">Total: $${summarySpent.toFixed(2)}</div>
+      ${Object.keys(summaryCats).length ? `<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--ink-soft);">${Object.entries(summaryCats).map(([c,a])=>`<span><strong style="color:var(--ink);">${escapeHtml(c)}:</strong> $${a.toFixed(2)}</span>`).join('')}</div>` : ''}
+    `;
+  }
 }
 
 let txSort = { field: 'date', dir: 'desc' };
@@ -946,7 +963,6 @@ function downloadSearchPDF(){
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  const pageHeight = doc.internal.pageSize.getHeight();
   let y = 20;
 
   doc.setFontSize(16);
@@ -963,27 +979,25 @@ function downloadSearchPDF(){
   const cats = {};
   results.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
   if(Object.keys(cats).length > 1){
-    doc.setFontSize(11);
-    doc.text('By category:', 14, y); y += 6;
-    doc.setFontSize(10);
-    Object.entries(cats).forEach(([c,a])=>{
-      if(y > pageHeight - 20){ doc.addPage(); y = 20; }
-      doc.text(`  ${c}: $${a.toFixed(2)}`, 14, y); y += 6;
-    });
-    y += 4;
+    doc.setFontSize(9);
+    doc.setTextColor(90);
+    const catLine = Object.entries(cats).map(([c,a])=>`${c}: $${a.toFixed(2)}`).join('    ·    ');
+    doc.text(catLine, 14, y); y += 8;
+    doc.setTextColor(0);
   }
 
-  doc.setFontSize(11);
-  doc.text(`Transactions (${results.length}):`, 14, y); y += 8;
-  doc.setFontSize(9);
-  results
-    .sort((a,b)=> a.date < b.date ? 1 : -1)
-    .forEach(t=>{
-      if(y > pageHeight - 20){ doc.addPage(); y = 20; }
-      const line = `${t.date}   ${t.merchant}   $${t.amount.toFixed(2)}   [${t.category}${t.source ? ' · '+t.source : ''}]`;
-      doc.text(line, 14, y);
-      y += 6;
-    });
+  const sorted = [...results].sort((a,b)=> a.date < b.date ? 1 : -1);
+  const body = sorted.map(t => [t.date, t.merchant, t.category, t.source || '', `$${t.amount.toFixed(2)}`]);
+
+  doc.autoTable({
+    head: [['Date', 'Merchant', 'Category', 'Source', 'Amount']],
+    body: body,
+    startY: y + 2,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [31, 111, 107], textColor: 255 },
+    columnStyles: { 4: { halign: 'right' } },
+    alternateRowStyles: { fillColor: [246, 248, 251] }
+  });
 
   doc.save(`spend-radar-${toISO(new Date())}.pdf`);
   showToast(`Downloaded PDF with ${results.length} transaction(s)`);
