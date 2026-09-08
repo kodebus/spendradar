@@ -1,25 +1,55 @@
-const { plaidClient } = require('./_plaid');
-const { kv } = require('@vercel/kv');
+import { kv } from '@vercel/kv';
+import { requireAppSecret, plaidBaseUrl, plaidCredentials } from './_auth.js';
 
-module.exports = async (req, res) => {
+const STORE_KEY = 'spendradar:plaid_items';
+
+export default async function handler(req, res) {
+  if (!requireAppSecret(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { public_token } = req.body || {};
+  const { public_token, institution_name, institution_id, mask } = req.body || {};
   if (!public_token) return res.status(400).json({ error: 'Missing public_token' });
 
-  try {
-    const response = await plaidClient.itemPublicTokenExchange({ public_token });
-    const { access_token, item_id } = response.data;
+  const response = await fetch(`${plaidBaseUrl()}/item/public_token/exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...plaidCredentials(), public_token })
+  });
+  const data = await response.json();
+  if (!response.ok) return res.status(response.status).json(data);
 
-    // The access token is a live credential — it is stored server-side only,
-    // and is never sent back to the browser.
-    await kv.set('plaid_access_token', access_token);
-    await kv.set('plaid_item_id', item_id);
-    await kv.del('plaid_cursor'); // reset sync cursor for a fresh Item
+  // Multiple banks are stored keyed by item_id. Plaid issues a brand-new
+  // item_id every time Link runs, even when relinking the exact same
+  // institution, so we dedupe on institution_id (or name, as a fallback)
+  // and remove any prior connection to that same bank before adding this one.
+  const items = (await kv.get(STORE_KEY)) || {};
 
-    res.status(200).json({ success: true });
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to exchange token' });
+  for (const [oldItemId, oldItem] of Object.entries(items)) {
+    const sameInstitution = institution_id
+      ? oldItem.institution_id === institution_id
+      : oldItem.institution_name === institution_name;
+    if (sameInstitution) {
+      try {
+        await fetch(`${plaidBaseUrl()}/item/remove`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...plaidCredentials(), access_token: oldItem.access_token })
+        });
+      } catch (err) {
+        console.error('Plaid item/remove failed while replacing old connection:', err);
+      }
+      delete items[oldItemId];
+    }
   }
-};
+
+  items[data.item_id] = {
+    access_token: data.access_token,
+    institution_name: institution_name || 'Bank',
+    institution_id: institution_id || '',
+    mask: mask || '',
+    cursor: null
+  };
+  await kv.set(STORE_KEY, items);
+
+  res.status(200).json({ connected: true, item_id: data.item_id });
+}
