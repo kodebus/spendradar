@@ -63,7 +63,7 @@
 
   .app-shell{display:flex;max-width:1180px;margin:0 auto;align-items:flex-start;}
   .sidebar{width:210px;flex-shrink:0;padding:20px 12px 20px 24px;position:sticky;top:56px;}
-  .sidebar-title{font-family:var(--display);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin:0 0 8px 10px;}
+  .sidebar-title{font-family:var(--display);font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--teal);margin:0 0 10px 10px;}
   .nav-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:none;border:none;border-radius:8px;padding:9px 10px;cursor:pointer;margin-bottom:2px;font-family:var(--body);transition:.15s;}
   .nav-item:hover{background:var(--teal-light);}
   .nav-item .nav-sub{font-size:12.5px;font-weight:500;color:var(--ink);}
@@ -165,7 +165,7 @@
       <span class="nav-via">through pasting transactions</span>
     </button>
 
-    <div class="sidebar-title" style="margin-top:22px;">This Cycle</div>
+    <div class="sidebar-title" style="margin-top:48px;">This Cycle</div>
     <div id="categoryBreakdown" class="sidebar-chart"></div>
   </aside>
 
@@ -204,7 +204,7 @@
     <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
       <div id="summaryContent" style="flex:1;min-width:180px;"></div>
       <div style="display:flex;flex-direction:column;gap:6px;min-width:160px;">
-        <label style="font-size:11px;font-weight:500;color:var(--ink-soft);">Limits (optional)</label>
+        <label style="font-size:11px;font-weight:500;color:var(--ink-soft);">Spending limits (optional)</label>
         <div style="position:relative;">
           <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-soft);font-size:14px;pointer-events:none;">$</span>
           <input type="text" inputmode="decimal" id="pdfLimit" placeholder="0.00" style="padding-left:22px;width:100%;" oninput="formatCurrencyInput(this); updateRemainingDisplay();" onblur="formatCurrencyBlur(this); updateRemainingDisplay();">
@@ -976,8 +976,10 @@ function clearSearch(){
   document.getElementById('searchTo').value = '';
   document.getElementById('searchCategory').value = '';
   document.getElementById('searchSource').value = '';
+  document.getElementById('pdfLimit').value = '';
   txDisplayLimit = 15;
   render();
+  updateRemainingDisplay();
 }
 
 let currentSummarySpent = 0;
