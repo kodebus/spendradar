@@ -1009,7 +1009,7 @@ function runSearch(){
   render();
 }
 function clearSearch(){
-  activeFilter = null;
+  activeFilter = {}; // explicitly "show everything, unscoped" — distinct from null (which mirrors the current cycle by default)
   document.getElementById('searchFrom').value = '';
   document.getElementById('searchTo').value = '';
   document.getElementById('searchCategory').value = '';
