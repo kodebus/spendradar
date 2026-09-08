@@ -42,26 +42,7 @@
 
   .wrap{max-width:960px;margin:0 auto;padding:36px 24px 0;}
 
-  .top-grid{display:grid;grid-template-columns:280px 1fr;gap:24px;margin-bottom:24px;}
-  @media (max-width:760px){.top-grid{grid-template-columns:1fr;}}
-
   .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;}
-
-  .gauge-card{display:flex;flex-direction:column;align-items:center;text-align:center;}
-  .gauge-name{font-family:var(--display);font-weight:600;font-size:15px;color:var(--ink-soft);margin-bottom:14px;}
-  .gauge-figure{position:relative;width:200px;height:200px;}
-  .gauge-figure svg{width:100%;height:100%;transform:rotate(-90deg);}
-  .gauge-track{fill:none;stroke:#EEF2F6;stroke-width:14;}
-  .gauge-fill{fill:none;stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset .5s ease, stroke .3s ease;}
-  .gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-  .gauge-remaining{font-family:var(--mono);font-size:28px;font-weight:600;letter-spacing:-0.5px;}
-  .gauge-label{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:1px;margin-top:4px;}
-  .gauge-sub{font-family:var(--mono);font-size:12px;color:var(--ink-soft);margin-top:14px;}
-  .gauge-reset{font-size:11px;color:var(--ink-soft);margin-top:6px;}
-  .as-of-row{display:flex;align-items:center;gap:6px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11.5px;color:var(--ink-soft);}
-  .as-of-row label{font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px;}
-  .as-of-row input[type=date]{font-family:var(--mono);font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;color:var(--ink);background:white;}
-  .as-of-row button{font-family:var(--body);font-size:11px;font-weight:500;color:var(--teal);background:none;border:none;cursor:pointer;text-decoration:underline;}
 
   .summary-card h2{font-family:var(--display);font-size:16px;font-weight:600;margin-bottom:16px;}
   .cat-row{display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:12px;margin-bottom:12px;}
@@ -125,6 +106,7 @@
   .tx-date{font-family:var(--mono);font-size:12px;color:var(--ink-soft);}
   .tx-cat{font-size:11px;font-family:var(--mono);color:var(--teal-dark);background:var(--teal-light);padding:2px 8px;border-radius:6px;justify-self:start;}
   .tx-amt{font-family:var(--mono);text-align:right;}
+  .tx-source{font-size:10.5px;color:var(--ink-soft);margin-top:2px;}
   .tx-del{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:16px;padding:8px;margin:-8px;border-radius:6px;line-height:1;}
   .tx-del:hover{background:#FBE9E7;}
   .tx-del:hover{color:var(--red);}
@@ -171,40 +153,13 @@
       <span class="nav-sub">📋 Paste transactions</span>
       <span class="nav-via">through pasting transactions</span>
     </button>
-    <button class="nav-item" onclick="togglePanel('shotPanel')">
-      <span class="nav-sub">🖼️ Paste screenshot</span>
-      <span class="nav-via">through pasting screenshot</span>
-    </button>
   </aside>
 
   <div class="wrap">
 
-  <div class="top-grid">
-    <div class="card gauge-card">
-      <div class="gauge-name" id="gaugeName">Spending</div>
-      <div class="gauge-figure">
-        <svg viewBox="0 0 200 200">
-          <circle class="gauge-track" cx="100" cy="100" r="82"/>
-          <circle class="gauge-fill" id="gaugeFill" cx="100" cy="100" r="82"/>
-        </svg>
-        <div class="gauge-center">
-          <div class="gauge-remaining" id="gaugeRemaining">$0</div>
-          <div class="gauge-label">Remaining</div>
-        </div>
-      </div>
-      <div class="gauge-sub" id="gaugeSub">$0 of $0 spent</div>
-      <div class="gauge-reset" id="gaugeReset">Cycle resets on the —</div>
-      <div class="as-of-row">
-        <label for="asOfDate">As of</label>
-        <input type="date" id="asOfDate" onchange="setViewAsOfDate(this.value)">
-        <button type="button" id="asOfToday" onclick="resetViewToToday()" style="display:none;">Today</button>
-      </div>
-    </div>
-
-    <div class="card summary-card">
-      <h2>By category</h2>
-      <div id="categoryBreakdown"></div>
-    </div>
+  <div class="card summary-card" style="margin-bottom:24px;">
+    <h2>By category (current cycle)</h2>
+    <div id="categoryBreakdown"></div>
   </div>
 
   <div class="card connection-card" id="connectionCard"></div>
@@ -248,15 +203,6 @@
     </div>
   </div>
 
-  <div class="panel card" id="shotPanel">
-    <h3>Paste a screenshot</h3>
-    <div class="dropzone" id="shotDropzone" tabindex="0">Click here, then paste (Ctrl/Cmd+V) a screenshot of your transaction list.</div>
-    <div class="hint">Sends the image to Claude to read out the transaction rows. Needs an Anthropic API key set in Settings when this app is running on its own site (works without one inside a Claude preview).</div>
-    <div class="panel-buttons">
-      <button class="btn-sm" onclick="togglePanel('shotPanel')">Cancel</button>
-    </div>
-  </div>
-
   <div class="panel card" id="reviewPanel">
     <h3>Review new transactions</h3>
     <div id="reviewSummary" style="font-size:13px;color:var(--ink-soft);margin-bottom:6px;"></div>
@@ -276,7 +222,7 @@
   </div>
 
   <div class="card tx-card">
-    <h2>Transactions <button onclick="clearAll()">Clear all</button></h2>
+    <h2>Transactions <span><button onclick="exportTransactionsCSV()" style="margin-right:14px;">Export CSV</button><button onclick="clearAll()">Clear all</button></span></h2>
     <div id="txList"></div>
   </div>
 
@@ -287,44 +233,12 @@
   <div class="modal">
     <h3>Settings</h3>
     <div class="field">
-      <label>Cardholder name</label>
-      <input type="text" id="setName" placeholder="e.g. David">
-    </div>
-    <div class="field">
-      <label>Spending limit</label>
-      <div style="display:flex;gap:10px;">
-        <div style="flex:1;">
-          <label style="font-weight:400;font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;">
-            <input type="radio" name="limitMode" value="monthly" checked onchange="onLimitModeChange()"> Monthly
-          </label>
-          <input type="number" id="setLimitMonthly" placeholder="e.g. 400" oninput="onLimitFieldInput('monthly')">
-        </div>
-        <div style="flex:1;">
-          <label style="font-weight:400;font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;">
-            <input type="radio" name="limitMode" value="biweekly" onchange="onLimitModeChange()"> Bi-weekly
-          </label>
-          <input type="number" id="setLimitBiweekly" placeholder="e.g. 200" oninput="onLimitFieldInput('biweekly')" disabled>
-        </div>
-        <div style="flex:1;">
-          <label style="font-weight:400;font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;">
-            <input type="radio" name="limitMode" value="weekly" onchange="onLimitModeChange()"> Weekly
-          </label>
-          <input type="number" id="setLimitWeekly" placeholder="e.g. 100" oninput="onLimitFieldInput('weekly')" disabled>
-        </div>
-      </div>
-      <div class="hint" style="margin-top:6px;">Pick which one you'd rather enter directly — the other two are calculated from it.</div>
-    </div>
-    <div class="field">
       <label>Cycle reset day (day of month)</label>
-      <input type="number" id="setCycle" min="1" max="31" placeholder="e.g. 19">
+      <input type="number" id="setCycle" min="1" max="31" placeholder="e.g. 1st">
     </div>
     <div class="field">
       <label>App secret (required for Connect bank — must match APP_SECRET in Vercel)</label>
       <input type="password" id="setAppSecret" placeholder="paste the same value set in Vercel">
-    </div>
-    <div class="field">
-      <label>Anthropic API key (optional — only needed for screenshot import once deployed on your own site)</label>
-      <input type="password" id="setApiKey" placeholder="sk-ant-...">
     </div>
     <div class="modal-buttons" style="justify-content:space-between;">
       <button type="button" style="background:none;border:none;color:var(--red);font-size:12.5px;cursor:pointer;padding:0;" onclick="resetApp()">Reset everything</button>
@@ -348,7 +262,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { name:'', limit:null, cycleDay:null, apiKey:'', appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', limitMode:'monthly', transactions:[] };
+  return { cycleDay:null, appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -399,57 +313,18 @@ async function pullStateFromServer(){
 }
 
 function openSettings(){
-  document.getElementById('setName').value = state.name || '';
-  const monthly = state.limit;
-  document.getElementById('setLimitMonthly').value = monthly || '';
-  document.getElementById('setLimitBiweekly').value = monthly ? (monthly/2).toFixed(2) : '';
-  document.getElementById('setLimitWeekly').value = monthly ? (monthly/4).toFixed(2) : '';
-  const mode = state.limitMode || 'monthly';
-  document.querySelector(`input[name=limitMode][value=${mode}]`).checked = true;
-  onLimitModeChange();
   document.getElementById('setCycle').value = state.cycleDay || '';
   document.getElementById('setAppSecret').value = state.appSecret || '';
-  document.getElementById('setApiKey').value = state.apiKey || '';
   document.getElementById('settingsModal').classList.add('open');
-}
-function onLimitModeChange(){
-  const mode = document.querySelector('input[name=limitMode]:checked').value;
-  document.getElementById('setLimitMonthly').disabled = mode !== 'monthly';
-  document.getElementById('setLimitBiweekly').disabled = mode !== 'biweekly';
-  document.getElementById('setLimitWeekly').disabled = mode !== 'weekly';
-}
-function onLimitFieldInput(source){
-  const mEl = document.getElementById('setLimitMonthly');
-  const bEl = document.getElementById('setLimitBiweekly');
-  const wEl = document.getElementById('setLimitWeekly');
-  if(source === 'monthly'){
-    const v = parseFloat(mEl.value);
-    if(!isNaN(v)){ bEl.value = (v/2).toFixed(2); wEl.value = (v/4).toFixed(2); }
-    else { bEl.value = ''; wEl.value = ''; }
-  } else if(source === 'biweekly'){
-    const v = parseFloat(bEl.value);
-    if(!isNaN(v)){ mEl.value = (v*2).toFixed(2); wEl.value = (v/2).toFixed(2); }
-    else { mEl.value = ''; wEl.value = ''; }
-  } else if(source === 'weekly'){
-    const v = parseFloat(wEl.value);
-    if(!isNaN(v)){ mEl.value = (v*4).toFixed(2); bEl.value = (v*2).toFixed(2); }
-    else { mEl.value = ''; bEl.value = ''; }
-  }
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
 async function saveSettings(){
   const priorSecret = state.appSecret;
-  const formName = document.getElementById('setName').value.trim();
-  const limitRaw = document.getElementById('setLimitMonthly').value.trim();
   const cycleRaw = document.getElementById('setCycle').value.trim();
-  const formLimit = limitRaw === '' ? null : (parseFloat(limitRaw) || 0);
   const formCycleDay = cycleRaw === '' ? null : (parseInt(cycleRaw) || null);
   const appSecret = document.getElementById('setAppSecret').value.trim();
-  const apiKey = document.getElementById('setApiKey').value.trim();
 
   state.appSecret = appSecret;
-  state.apiKey = apiKey;
-  state.limitMode = document.querySelector('input[name=limitMode]:checked').value;
 
   // If this is the first time an App secret is entered on this device, check the server
   // first rather than overwriting existing shared data with this device's blank defaults.
@@ -459,8 +334,6 @@ async function saveSettings(){
   }
 
   if(!pulledExisting){
-    state.name = formName;
-    state.limit = formLimit;
     state.cycleDay = formCycleDay;
   }
 
@@ -471,10 +344,8 @@ async function saveSettings(){
 }
 
 function resetApp(){
-  const ok = confirm('This clears all transactions and resets Cardholder name, Monthly limit, and Cycle reset day back to defaults. Your bank connection stays linked. This can\'t be undone. Continue?');
+  const ok = confirm('This clears all transactions and resets the Cycle reset day back to default. Your bank connection stays linked. This can\'t be undone. Continue?');
   if(!ok) return;
-  state.name = '';
-  state.limit = null;
   state.cycleDay = null;
   state.transactions = [];
   state.manualMethod = null;
@@ -486,7 +357,7 @@ function resetApp(){
 }
 
 function togglePanel(id){
-  ['csvPanel','pastePanel','shotPanel','reviewPanel'].forEach(p=>{
+  ['csvPanel','pastePanel','reviewPanel'].forEach(p=>{
     if(p!==id) document.getElementById(p).classList.remove('open');
   });
   document.getElementById(id).classList.toggle('open');
@@ -560,7 +431,7 @@ function parseCsv(text){
     const d = new Date(rawDate);
     const iso = toISO(d) || parseShortDate(rawDate);
     if(!iso) continue;
-    parsed.push({date:iso, merchant:desc, amount:amt, category:guessCategory(desc), source:'manual'});
+    parsed.push({date:iso, merchant:desc, amount:amt, category:guessCategory(desc), source:'CSV upload'});
   }
   if(!parsed.length) return showToast('No valid rows found');
   startReview(parsed);
@@ -594,7 +465,7 @@ function parseLineFormat(blob){
       if(amount !== null && iso){
         matchedAny = true;
         const merchant = merchantParts[0] || 'Unknown';
-        results.push({date: iso, merchant, amount, category: guessCategory(merchant), source:'manual'});
+        results.push({date: iso, merchant, amount, category: guessCategory(merchant), source:'Pasted transactions'});
         i = j+1;
         continue;
       }
@@ -620,7 +491,7 @@ function handlePasteText(){
       if(!merchant) merchant = 'Unknown';
       const amount = Math.abs(parseFloat(match[3].replace(/[^0-9.-]/g,'')));
       if(!iso || isNaN(amount) || amount===0) continue;
-      parsed.push({date:iso, merchant, amount, category:guessCategory(merchant), source:'manual'});
+      parsed.push({date:iso, merchant, amount, category:guessCategory(merchant), source:'Pasted transactions'});
     }
   }
 
@@ -630,67 +501,6 @@ function handlePasteText(){
   save();
   renderConnectionCard();
   document.getElementById('pasteInput').value = '';
-}
-
-// ---------- screenshot import ----------
-const shotZone = document.getElementById('shotDropzone');
-shotZone.addEventListener('paste', async (e)=>{
-  const items = e.clipboardData.items;
-  for(const item of items){
-    if(item.type.startsWith('image/')){
-      const file = item.getAsFile();
-      const reader = new FileReader();
-      reader.onload = async (ev)=>{
-        shotZone.innerHTML = 'Reading transactions from image…';
-        const base64 = ev.target.result.split(',')[1];
-        try{
-          const parsed = await extractFromImage(base64, item.type);
-          if(parsed && parsed.length){
-            startReview(parsed);
-            state.manualMethod = 'screenshot';
-            save();
-            renderConnectionCard();
-          } else {
-            showToast('No transactions found in that image');
-          }
-        }catch(err){
-          showToast('Screenshot import failed — try CSV or paste instead');
-          console.error(err);
-        }
-        shotZone.innerHTML = 'Click here, then paste (Ctrl/Cmd+V) a screenshot of your transaction list.';
-      };
-      reader.readAsDataURL(file);
-    }
-  }
-});
-
-async function extractFromImage(base64, mediaType){
-  const headers = { "Content-Type": "application/json" };
-  if(state.apiKey){
-    headers["x-api-key"] = state.apiKey;
-    headers["anthropic-version"] = "2023-06-01";
-    headers["anthropic-dangerous-direct-browser-access"] = "true";
-  }
-  const body = {
-    model: "claude-sonnet-4-6",
-    max_tokens: 1000,
-    messages: [{
-      role: "user",
-      content: [
-        { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-        { type: "text", text: "Read the transaction rows in this bank activity screenshot. Return ONLY a JSON array, no other text, of objects like {\"date\":\"YYYY-MM-DD\",\"merchant\":\"...\",\"amount\":12.34}. Use the current year if no year is shown. Only include actual purchase transactions (skip payments/credits)." }
-      ]
-    }]
-  };
-  const res = await fetch("https://api.anthropic.com/v1/messages", { method:"POST", headers, body: JSON.stringify(body) });
-  const data = await res.json();
-  const textBlocks = (data.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("\n");
-  const clean = textBlocks.replace(/```json|```/g,'').trim();
-  let rows;
-  try{ rows = JSON.parse(clean); }catch(e){ return []; }
-  return rows
-    .filter(r=>r.date && r.amount)
-    .map(r=>({date:r.date, merchant:r.merchant||'Unknown', amount:Math.abs(parseFloat(r.amount)), category:guessCategory(r.merchant||''), source:'manual'}));
 }
 
 // ---------- bank connection (Plaid) ----------
@@ -813,22 +623,20 @@ async function syncBankTransactions(){
     state.lastSyncedAt = new Date().toISOString();
     save();
     const syncedLabel = formatSyncedTime(state.lastSyncedAt);
-    const cycleStartISO = getCycleStartISO(new Date());
-    const inCycle = transactions.filter(t => t.date >= cycleStartISO);
-    const skippedOld = transactions.length - inCycle.length;
-    if(!inCycle.length){
-      setBankStatus(`No new transactions in the current cycle since last sync. Last checked ${syncedLabel}.` + (skippedOld ? ` (${skippedOld} older transaction(s) outside this cycle were skipped.)` : ''));
+    if(!transactions.length){
+      setBankStatus(`No new transactions since last sync. Last checked ${syncedLabel}.`);
       return;
     }
-    const parsed = inCycle.map(t => ({
+    const bankSourceLabel = state.plaidInstitution || 'Bank';
+    const parsed = transactions.map(t => ({
       date: t.date,
       merchant: t.merchant,
       amount: Math.abs(t.amount),
       category: guessCategory(t.merchant || ''),
-      source: 'bank'
+      source: bankSourceLabel
     }));
     startReview(parsed);
-    setBankStatus(`Synced ${inCycle.length} transaction(s) from your bank just now (${syncedLabel})` + (skippedOld ? ` — ${skippedOld} older transaction(s) outside this cycle were skipped` : '') + ' — review below.');
+    setBankStatus(`Synced ${transactions.length} transaction(s) from your bank just now (${syncedLabel}) — review below.`);
   }catch(err){
     console.error(err);
     setBankStatus('Bank sync failed. The Vercel backend, APP_SECRET, or Plaid keys may not be set up right.');
@@ -842,7 +650,7 @@ function isDuplicate(tx){
 function startReview(parsed){
   pendingReview = parsed.map(tx => ({...tx, dup: isDuplicate(tx), selected: !isDuplicate(tx)}));
   renderReviewList();
-  ['csvPanel','pastePanel','shotPanel'].forEach(p=>document.getElementById(p).classList.remove('open'));
+  ['csvPanel','pastePanel'].forEach(p=>document.getElementById(p).classList.remove('open'));
   document.getElementById('reviewPanel').classList.add('open');
   document.getElementById('reviewPanel').scrollIntoView({ behavior:'smooth', block:'start' });
 }
@@ -893,10 +701,8 @@ function cancelReview(){
 }
 
 // ---------- rendering ----------
-let viewAsOfDate = new Date(); // "as of" viewing lens — does NOT affect what bank sync pulls in
-
 function getCycleStartISO(refDate){
-  const now = refDate || viewAsOfDate;
+  const now = refDate || new Date();
   const cycleDay = state.cycleDay || 19;
   let start = new Date(now.getFullYear(), now.getMonth(), cycleDay);
   if(now.getDate() < cycleDay) start = new Date(now.getFullYear(), now.getMonth()-1, cycleDay);
@@ -904,19 +710,8 @@ function getCycleStartISO(refDate){
 }
 function currentCycleSpend(){
   const startISO = getCycleStartISO();
-  const asOfISO = toISO(viewAsOfDate);
-  return state.transactions.filter(t => t.date >= startISO && t.date <= asOfISO);
-}
-function setViewAsOfDate(dateStr){
-  if(!dateStr) return;
-  const d = new Date(dateStr + 'T00:00:00');
-  if(isNaN(d)) return;
-  viewAsOfDate = d;
-  render();
-}
-function resetViewToToday(){
-  viewAsOfDate = new Date();
-  render();
+  const todayISO = toISO(new Date());
+  return state.transactions.filter(t => t.date >= startISO && t.date <= todayISO);
 }
 
 function renderConnectionCard(){
@@ -937,7 +732,7 @@ function renderConnectionCard(){
       </div>
     `;
   } else if(state.manualMethod){
-    const labels = { csv:'📄 Importing via CSV upload', paste:'📋 Importing via pasted transactions', screenshot:'🖼️ Importing via screenshot' };
+    const labels = { csv:'📄 Importing via CSV upload', paste:'📋 Importing via pasted transactions' };
     el.innerHTML = `
       <div>
         <div class="connection-label">${labels[state.manualMethod] || 'Importing manually'}</div>
@@ -945,39 +740,14 @@ function renderConnectionCard(){
       </div>
     `;
   } else {
-    el.innerHTML = `<div class="connection-empty">Choose how to bring in transactions from the sidebar to get started — connect your bank through Plaid, or import manually via CSV, pasted text, or a screenshot.</div>`;
+    el.innerHTML = `<div class="connection-empty">Choose how to bring in transactions from the sidebar to get started — connect your bank through Plaid, or import manually via CSV or pasted text.</div>`;
   }
 }
 
 function render(){
   renderConnectionCard();
-  document.getElementById('gaugeName').textContent = state.name ? `${state.name}'s spending` : 'Spending';
-  document.getElementById('gaugeReset').textContent = state.cycleDay
-    ? `Cycle resets on the ${ordinal(state.cycleDay)}`
-    : 'Set a cycle reset day in Settings';
-
-  const asOfInput = document.getElementById('asOfDate');
-  const asOfTodayBtn = document.getElementById('asOfToday');
-  const viewISO = toISO(viewAsOfDate);
-  const todayISO = toISO(new Date());
-  if(asOfInput && document.activeElement !== asOfInput) asOfInput.value = viewISO;
-  if(asOfTodayBtn) asOfTodayBtn.style.display = (viewISO !== todayISO) ? 'inline' : 'none';
 
   const cycleTx = currentCycleSpend();
-  const spent = cycleTx.reduce((s,t)=>s+t.amount,0);
-  const limitSet = state.limit !== null && state.limit !== undefined;
-  const limit = state.limit || 0;
-  const remaining = Math.max(limit - spent, 0);
-  const pct = limit>0 ? Math.min(spent/limit,1) : 0;
-
-  const r = 82, circ = 2*Math.PI*r;
-  const fill = document.getElementById('gaugeFill');
-  fill.setAttribute('stroke-dasharray', circ);
-  fill.setAttribute('stroke-dashoffset', circ*(1-pct));
-  fill.style.stroke = pct<0.7 ? 'var(--green)' : pct<0.9 ? 'var(--amber)' : 'var(--red)';
-
-  document.getElementById('gaugeRemaining').textContent = limitSet ? `$${remaining.toFixed(2)}` : '—';
-  document.getElementById('gaugeSub').textContent = limitSet ? `$${spent.toFixed(2)} of $${limit.toFixed(2)} spent` : 'Set a monthly limit in Settings';
 
   const cats = {};
   cycleTx.forEach(t=>{ cats[t.category] = (cats[t.category]||0) + t.amount; });
@@ -997,18 +767,19 @@ function render(){
   txDiv.innerHTML = state.transactions.length ? state.transactions.map((t,i)=>`
     <div class="tx-row">
       <div class="tx-date">${t.date}</div>
-      <div>${escapeHtml(t.merchant)}</div>
+      <div>${escapeHtml(t.merchant)}${t.source ? `<div class="tx-source">${escapeHtml(t.source)}</div>` : ''}</div>
       <div class="tx-cat">${t.category}</div>
       <div class="tx-amt">$${t.amount.toFixed(2)}</div>
       <button class="tx-del" onclick="deleteTx(${i})" title="Delete">✕</button>
     </div>
-  `).join('') : '<div class="empty-state">No transactions yet — import a CSV, paste text, or paste a screenshot above.</div>';
+  `).join('') : '<div class="empty-state">No transactions yet — import a CSV or paste text above.</div>';
 }
 
+const MANUAL_SOURCES = ['CSV upload', 'Pasted transactions'];
 function deleteTx(i){
   const tx = state.transactions[i];
-  if(tx && tx.source === 'bank'){
-    const ok = confirm('This transaction came from your bank and can\'t be re-downloaded by syncing again if you delete it. Delete anyway?');
+  if(tx && tx.source && !MANUAL_SOURCES.includes(tx.source)){
+    const ok = confirm(`This transaction came from ${tx.source} and can't be re-downloaded by syncing again if you delete it. Delete anyway?`);
     if(!ok) return;
   }
   state.transactions.splice(i,1);
@@ -1020,6 +791,34 @@ function clearAll(){
   state.transactions = [];
   save();
   render();
+}
+
+function csvEscape(val){
+  const s = val === null || val === undefined ? '' : String(val);
+  if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+function exportTransactionsCSV(){
+  if(!state.transactions.length) return showToast('No transactions to export');
+  const header = ['Date','Merchant','Category','Amount','Source'];
+  const rows = state.transactions.map(t => [
+    t.date,
+    csvEscape(t.merchant),
+    t.category,
+    t.amount.toFixed(2),
+    t.source || 'Unknown'
+  ]);
+  const csv = [header, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `spend-radar-transactions-${toISO(new Date())}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${state.transactions.length} transaction(s) to CSV`);
 }
 
 function ordinal(n){
