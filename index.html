@@ -294,7 +294,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { cycleDay:null, appSecret:'', manualMethod:null, plaidInstitution:'', plaidMask:'', transactions:[] };
+  return { cycleDay:null, appSecret:'', manualMethod:null, bankConnections:[], transactions:[] };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -302,7 +302,7 @@ function save(){
 }
 
 // ---------- shared server-side state (so settings/transactions aren't stuck on one device) ----------
-const SYNCED_FIELDS = ['name','limit','cycleDay','transactions','plaidInstitution','plaidMask','lastSyncedAt','manualMethod','bankLinked'];
+const SYNCED_FIELDS = ['name','limit','cycleDay','transactions','bankConnections','lastSyncedAt','manualMethod'];
 let pushTimer = null;
 function schedulePushToServer(){
   if(!state.appSecret) return;
@@ -382,7 +382,7 @@ function resetApp(){
   state.cycleDay = null;
   state.transactions = [];
   state.manualMethod = null;
-  // bankLinked / plaidInstitution / plaidMask are intentionally left alone — the bank stays connected
+  // bankConnections is intentionally left alone — connected banks stay linked
   save();
   closeSettings();
   render();
@@ -568,25 +568,24 @@ async function connectBank(){
       onSuccess: async (public_token, metadata) => {
         setBankStatus('Linking account…');
         try{
+          const institutionName = metadata?.institution?.name || 'Bank';
+          const mask = metadata?.accounts?.[0]?.mask || '';
           const exchangeRes = await fetch('/api/exchange-public-token', {
             method:'POST',
             headers:{
               'Content-Type':'application/json',
               'x-app-secret': state.appSecret
             },
-            body: JSON.stringify({ public_token })
+            body: JSON.stringify({ public_token, institution_name: institutionName, mask })
           });
           if(!exchangeRes.ok){
             const body = await exchangeRes.json().catch(()=>({}));
             throw new Error(body.error || 'exchange failed');
           }
-          state.bankLinked = true;
           state.manualMethod = null;
-          state.plaidInstitution = metadata?.institution?.name || '';
-          state.plaidMask = metadata?.accounts?.[0]?.mask || '';
           save();
-          renderConnectionCard();
-          showToast('Bank connected — syncing transactions…');
+          showToast(`${institutionName} connected — syncing transactions…`);
+          await refreshBankConnections();
           await syncBankTransactions();
         }catch(err){
           console.error(err);
@@ -607,30 +606,29 @@ async function connectBank(){
   }
 }
 
-async function disconnectBank(){
+async function disconnectBank(itemId, institutionName){
   if(!state.appSecret){
     setBankStatus('Set your "App secret" in Settings first.');
     return;
   }
-  const ok = confirm('Disconnect this bank account? You\'ll need to link it again through Plaid before syncing works. Transactions already added won\'t be removed.');
+  const ok = confirm(`Disconnect ${institutionName || 'this bank'}? You'll need to link it again through Plaid before syncing works. Transactions already added won't be removed.`);
   if(!ok) return;
-  setBankStatus('Disconnecting…');
+  setBankStatus(`Disconnecting ${institutionName || 'bank'}…`);
   try{
     const res = await fetch('/api/disconnect-bank', {
       method:'POST',
-      headers:{ 'x-app-secret': state.appSecret }
+      headers:{
+        'Content-Type':'application/json',
+        'x-app-secret': state.appSecret
+      },
+      body: JSON.stringify({ item_id: itemId })
     });
     if(!res.ok){
       const body = await res.json().catch(()=>({}));
       throw new Error(body.error || 'disconnect failed');
     }
-    state.bankLinked = false;
-    state.plaidInstitution = '';
-    state.plaidMask = '';
-    state.lastSyncedAt = null;
-    save();
-    renderConnectionCard();
-    setBankStatus('Bank disconnected. Connect again any time from the sidebar.');
+    await refreshBankConnections();
+    setBankStatus(`${institutionName || 'Bank'} disconnected. Connect again any time from the sidebar.`);
   }catch(err){
     console.error(err);
     setBankStatus('Could not disconnect. Try again.');
@@ -660,13 +658,12 @@ async function syncBankTransactions(){
       setBankStatus(`No new transactions since last sync. Last checked ${syncedLabel}.`);
       return;
     }
-    const bankSourceLabel = state.plaidInstitution || 'Bank';
     const parsed = transactions.map(t => ({
       date: t.date,
       merchant: t.merchant,
       amount: Math.abs(t.amount),
       category: guessCategory(t.merchant || ''),
-      source: bankSourceLabel
+      source: t.source || 'Bank'
     }));
     startReview(parsed);
     setBankStatus(`Synced ${transactions.length} transaction(s) from your bank just now (${syncedLabel}) — review below.`);
@@ -751,20 +748,22 @@ function currentCycleSpend(){
 function renderConnectionCard(){
   const el = document.getElementById('connectionCard');
   if(!el) return;
-  if(state.bankLinked){
-    const inst = state.plaidInstitution || 'your bank';
-    const mask = state.plaidMask ? ` •••• ${escapeHtml(state.plaidMask)}` : '';
+  const connections = state.bankConnections || [];
+  if(connections.length){
     const synced = state.lastSyncedAt ? `Last synced ${formatSyncedTime(state.lastSyncedAt)}` : 'Not synced yet';
-    el.style.display = 'flex';
+    el.style.display = 'block';
+    el.style.flexDirection = 'column';
     el.innerHTML = `
-      <div>
-        <div class="connection-label">🏦 Connected to ${escapeHtml(inst)}${mask}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${connections.length>1?'10px':'0'};">
         <div class="connection-sub">${synced}</div>
-      </div>
-      <div style="display:flex;gap:8px;">
         <button class="btn-sm primary" onclick="syncBankTransactions()">Sync now</button>
-        <button class="btn-sm" onclick="disconnectBank()">Disconnect</button>
       </div>
+      ${connections.map(c => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;${connections.length>1?'border-top:1px solid var(--border);':''}">
+          <div class="connection-label" style="font-size:13.5px;">🏦 ${escapeHtml(c.institution_name || 'Bank')}${c.mask ? ` •••• ${escapeHtml(c.mask)}` : ''}</div>
+          <button class="btn-sm" onclick="disconnectBank('${c.item_id}', '${escapeHtml(c.institution_name || 'this bank').replace(/'/g,"\\'")}')">Disconnect</button>
+        </div>
+      `).join('')}
     `;
   } else {
     el.style.display = 'none';
@@ -1121,7 +1120,7 @@ async function initApp(){
   checkBankStatus();
 }
 
-async function checkBankStatus(){
+async function refreshBankConnections(){
   if(!state.appSecret) return;
   try{
     const res = await fetch('/api/bank-status', {
@@ -1129,15 +1128,18 @@ async function checkBankStatus(){
       headers:{ 'x-app-secret': state.appSecret }
     });
     if(!res.ok) return;
-    const { connected } = await res.json();
-    if(connected){
-      state.bankLinked = true;
-      save();
-      renderConnectionCard();
-      syncBankTransactions();
-    }
+    const { connections } = await res.json();
+    state.bankConnections = connections || [];
+    save();
+    renderConnectionCard();
   }catch(err){
     console.error(err);
+  }
+}
+async function checkBankStatus(){
+  await refreshBankConnections();
+  if(state.bankConnections.length){
+    syncBankTransactions();
   }
 }
 </script>
