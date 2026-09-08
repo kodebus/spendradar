@@ -25,9 +25,9 @@ export default async function handler(req, res) {
   const items = (await kv.get(STORE_KEY)) || {};
 
   for (const [oldItemId, oldItem] of Object.entries(items)) {
-    const sameInstitution = institution_id
-      ? oldItem.institution_id === institution_id
-      : oldItem.institution_name === institution_name;
+    const idMatch = institution_id && oldItem.institution_id && oldItem.institution_id === institution_id;
+    const nameMatch = institution_name && oldItem.institution_name && oldItem.institution_name === institution_name;
+    const sameInstitution = idMatch || nameMatch;
     if (sameInstitution) {
       try {
         await fetch(`${plaidBaseUrl()}/item/remove`, {
