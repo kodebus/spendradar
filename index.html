@@ -772,9 +772,20 @@ function renderConnectionCard(){
   }
 }
 
+function syncSearchDatesToView(){
+  const fromEl = document.getElementById('searchFrom');
+  const toEl = document.getElementById('searchTo');
+  if(!fromEl || !toEl) return;
+  if(activeFilter) return; // a real search is active — leave whatever the person typed alone
+  if(document.activeElement === fromEl || document.activeElement === toEl) return; // don't fight active typing
+  fromEl.value = getCycleStartISO();
+  toEl.value = toISO(new Date());
+}
+
 function render(){
   renderConnectionCard();
   populateSearchFilters();
+  syncSearchDatesToView();
 
   const cycleTx = currentCycleSpend();
 
@@ -1108,17 +1119,6 @@ async function initApp(){
   }
   render();
   checkBankStatus();
-  prefillSearchDatesToCycle();
-}
-
-function prefillSearchDatesToCycle(){
-  if(!state.transactions.length) return;
-  const fromEl = document.getElementById('searchFrom');
-  const toEl = document.getElementById('searchTo');
-  if(!fromEl || !toEl) return;
-  if(fromEl.value || toEl.value) return; // don't clobber anything already set
-  fromEl.value = getCycleStartISO();
-  toEl.value = toISO(new Date());
 }
 
 async function checkBankStatus(){
