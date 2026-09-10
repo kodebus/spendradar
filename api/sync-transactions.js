@@ -38,8 +38,20 @@ export default async function handler(req, res) {
 
     items[itemId] = { ...item, cursor };
 
+    // Amount sign alone isn't a reliable enough signal to separate real purchases
+    // from bill payments/transfers, so also exclude by Plaid's own categorization.
+    const EXCLUDED_PFC = ['LOAN_PAYMENTS', 'TRANSFER_IN', 'TRANSFER_OUT', 'INCOME', 'BANK_FEES'];
+    const isRealPurchase = (t) => {
+      const pfc = t.personal_finance_category?.primary;
+      if (pfc && EXCLUDED_PFC.includes(pfc)) return false;
+      const legacyCat = Array.isArray(t.category) ? t.category.join(' ').toLowerCase() : '';
+      if (legacyCat.includes('payment') || legacyCat.includes('transfer')) return false;
+      return true;
+    };
+
     const tagged = added
       .filter(t => !t.pending && t.amount > 0)
+      .filter(isRealPurchase)
       .map(t => ({
         date: t.date,
         merchant: t.merchant_name || t.name,
