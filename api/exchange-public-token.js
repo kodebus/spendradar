@@ -18,6 +18,28 @@ export default async function handler(req, res) {
   const data = await response.json();
   if (!response.ok) return res.status(response.status).json(data);
 
+  // A single Item can have several accounts under it (e.g. multiple cards on
+  // one Capital One login) — fetch them all so transactions can be tagged
+  // with exactly which account/card they came from, not just the bank.
+  let accounts = [];
+  try {
+    const acctResponse = await fetch(`${plaidBaseUrl()}/accounts/get`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...plaidCredentials(), access_token: data.access_token })
+    });
+    const acctData = await acctResponse.json();
+    if (acctResponse.ok) {
+      accounts = (acctData.accounts || []).map(a => ({
+        account_id: a.account_id,
+        name: a.official_name || a.name || '',
+        mask: a.mask || ''
+      }));
+    }
+  } catch (err) {
+    console.error('Failed to fetch accounts for this item:', err);
+  }
+
   // Multiple banks are stored keyed by item_id. Plaid issues a brand-new
   // item_id every time Link runs, even when relinking the exact same
   // institution, so we dedupe on institution_id (or name, as a fallback)
@@ -47,6 +69,7 @@ export default async function handler(req, res) {
     institution_name: institution_name || 'Bank',
     institution_id: institution_id || '',
     mask: mask || '',
+    accounts: accounts,
     cursor: null
   };
   await kv.set(STORE_KEY, items);
