@@ -49,6 +49,17 @@ export default async function handler(req, res) {
       return true;
     };
 
+    // One Item can have several accounts under it (e.g. multiple cards on one
+    // Capital One login) — look up each transaction's specific account so the
+    // source label can say which card, not just which bank.
+    const accountMap = {};
+    (item.accounts || []).forEach(a => { accountMap[a.account_id] = a; });
+    const sourceLabelFor = (t) => {
+      const acct = accountMap[t.account_id];
+      if (acct && acct.mask) return `${item.institution_name} •••• ${acct.mask}`;
+      return item.institution_name;
+    };
+
     const tagged = added
       .filter(t => !t.pending && t.amount > 0)
       .filter(isRealPurchase)
@@ -56,7 +67,7 @@ export default async function handler(req, res) {
         date: t.date,
         merchant: t.merchant_name || t.name,
         amount: t.amount,
-        source: item.institution_name
+        source: sourceLabelFor(t)
       }));
     allTransactions = allTransactions.concat(tagged);
   }
