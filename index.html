@@ -306,7 +306,7 @@ function load(){
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { cycleDay:null, appSecret:'', manualMethod:null, bankConnections:[], transactions:[] };
+  return { cycleDay:null, appSecret:'', manualMethod:null, bankConnections:[], transactions:[], cardNicknames:{} };
 }
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -314,7 +314,7 @@ function save(){
 }
 
 // ---------- shared server-side state (so settings/transactions aren't stuck on one device) ----------
-const SYNCED_FIELDS = ['name','limit','cycleDay','transactions','bankConnections','lastSyncedAt','manualMethod'];
+const SYNCED_FIELDS = ['name','limit','cycleDay','transactions','bankConnections','lastSyncedAt','manualMethod','cardNicknames'];
 let pushTimer = null;
 function schedulePushToServer(){
   if(!state.appSecret) return;
@@ -369,16 +369,50 @@ function openSettings(){
 function renderNewKeyMaskCheckboxes(){
   const el = document.getElementById('newKeyMasks');
   if(!el) return;
-  if(!availableAccounts.length){
-    el.innerHTML = '<span style="color:var(--ink-soft);">Connect a bank first to see cards you can restrict access to.</span>';
+
+  // Some institutions (e.g. Capital One with authorized users) only expose
+  // ONE account-level mask via bank-status/availableAccounts, but tag each
+  // synced transaction with the real per-card mask via Plaid's account_owner
+  // field (see sync-transactions.js). Build the checkbox list from BOTH
+  // sources, keyed on mask, so every card actually seen in transaction
+  // history is selectable — not just the shared parent account.
+  const byMask = {};
+  availableAccounts.forEach(a => { byMask[a.mask] = a.label; });
+  (state.transactions || []).forEach(t => {
+    if(!t.account_mask) return;
+    if(!byMask[t.account_mask]) {
+      const nickname = (state.cardNicknames || {})[t.account_mask];
+      byMask[t.account_mask] = nickname
+        ? `${nickname} (•••• ${t.account_mask})`
+        : (t.source || `•••• ${t.account_mask}`);
+    } else if((state.cardNicknames || {})[t.account_mask]) {
+      // Prefer a saved nickname over the raw bank-status label once one exists.
+      byMask[t.account_mask] = `${state.cardNicknames[t.account_mask]} (•••• ${t.account_mask})`;
+    }
+  });
+  const masks = Object.keys(byMask).sort();
+
+  if(!masks.length){
+    el.innerHTML = '<span style="color:var(--ink-soft);">Connect a bank and sync at least once to see cards you can restrict access to.</span>';
     return;
   }
-  el.innerHTML = availableAccounts.map(a => `
+  el.innerHTML = masks.map(mask => `
     <label style="display:flex;align-items:center;gap:6px;">
-      <input type="checkbox" value="${escapeHtml(a.mask)}" class="new-key-mask-cb">
-      ${escapeHtml(a.label)}
+      <input type="checkbox" value="${escapeHtml(mask)}" class="new-key-mask-cb">
+      ${escapeHtml(byMask[mask])}
+      <a href="#" onclick="event.preventDefault();renameCard('${escapeHtml(mask)}')" style="font-size:11px;color:var(--ink-soft);margin-left:auto;">rename</a>
     </label>
   `).join('');
+}
+function renameCard(mask){
+  const current = (state.cardNicknames || {})[mask] || '';
+  const name = prompt(`Name for card •••• ${mask} (e.g. "David"):`, current);
+  if(name === null) return; // cancelled
+  state.cardNicknames = state.cardNicknames || {};
+  if(name.trim()) state.cardNicknames[mask] = name.trim();
+  else delete state.cardNicknames[mask];
+  save();
+  renderNewKeyMaskCheckboxes();
 }
 async function loadAccessKeys(){
   const el = document.getElementById('accessKeysList');
@@ -391,7 +425,10 @@ async function loadAccessKeys(){
     el.innerHTML = keys.map(k => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
         <div>
-          <strong style="color:var(--ink);">${escapeHtml(k.label)}</strong> — ${k.allowedMasks.map(m=>'•••• '+escapeHtml(m)).join(', ')}<br>
+          <strong style="color:var(--ink);">${escapeHtml(k.label)}</strong> — ${k.allowedMasks.map(m=>{
+            const nick = (state.cardNicknames || {})[m];
+            return nick ? `${escapeHtml(nick)} (•••• ${escapeHtml(m)})` : '•••• '+escapeHtml(m);
+          }).join(', ')}<br>
           <span style="font-family:var(--mono);font-size:11px;">${escapeHtml(k.secret)}</span>
         </div>
         <button type="button" onclick="revokeAccessKey('${k.secret}')" style="background:none;border:none;color:var(--red);font-size:12px;cursor:pointer;">Revoke</button>
