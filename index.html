@@ -69,11 +69,45 @@
   .nav-item .nav-sub{font-size:12.5px;font-weight:500;color:var(--ink);}
   .nav-item .nav-via{font-size:10.5px;color:var(--ink-soft);}
   @media (max-width:760px){
-    .app-shell{flex-direction:column;}
-    .sidebar{width:100%;position:static;padding:16px 20px 0;display:flex;flex-direction:row;gap:6px;overflow-x:auto;}
+    /* THE FIX: .app-shell's base rule sets align-items:flex-start for the
+       desktop side-by-side layout. That property still applies once we
+       switch to flex-direction:column here — but in a column flex
+       container, align-items controls the HORIZONTAL axis. flex-start
+       there means .wrap shrinks to fit its own content instead of filling
+       the screen width, which is why the whole page was rendering wider
+       than the phone and everything appeared cut off / scrolled sideways.
+       Restoring the default (stretch) makes .wrap fill 100% of the screen
+       width like it's supposed to. */
+    .app-shell{flex-direction:column;align-items:stretch;}
+    .wrap{padding:16px 16px 0;}
+    .sidebar{width:100%;position:static;padding:16px 16px 0;display:flex;flex-direction:row;gap:6px;overflow-x:auto;}
     .sidebar-title{display:none;}
     .nav-item{flex-direction:row;align-items:center;gap:6px;white-space:nowrap;width:auto;}
     .nav-item .nav-via{display:none;}
+
+    /* Let search/summary fields wrap two-ish per row instead of trying to
+       cram four+ narrow fields plus buttons onto one line. */
+    #searchPanel .field{flex:1 1 140px;}
+    #searchPanel .field input, #searchPanel .field select{width:100%;}
+    #summaryCard > div{gap:16px;}
+
+    /* The desktop transaction list is a 6-column grid (checkbox / date /
+       merchant / category / amount / delete) — far too tight for a phone.
+       Collapse it into two lines per row instead: merchant + amount on
+       top, date + category underneath. Column headers don't make sense
+       once rows aren't a single line, so hide them here. */
+    .tx-row{grid-template-columns:22px 1fr 70px 26px;grid-template-areas:"check merchant amt del" "check date cat del";row-gap:4px;align-items:center;}
+    .tx-row.tx-header{display:none;}
+    .tx-check{grid-area:check;}
+    .tx-merchant{grid-area:merchant;min-width:0;}
+    .tx-date{grid-area:date;}
+    .tx-cat{grid-area:cat;justify-self:start;}
+    .tx-amt{grid-area:amt;}
+    .tx-del{grid-area:del;}
+
+    /* Review-import grid: same idea, just narrower columns rather than a
+       full restructure, since this screen is used less often. */
+    .review-row{grid-template-columns:20px 62px 1fr 56px 56px;gap:6px;font-size:11.5px;}
   }
 
   .connection-card{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:6px;flex-wrap:wrap;}
@@ -1007,9 +1041,9 @@ function render(){
   const visible = indexed.slice(0, txDisplayLimit);
   txDiv.innerHTML = header + (visible.length ? visible.map(t=>`
     <div class="tx-row">
-      <input type="checkbox" ${excludedFromPDF.has(txKey(t)) ? '' : 'checked'} onchange="togglePdfExclude('${txKey(t).replace(/'/g,"\\'")}')" title="Include in PDF">
+      <input type="checkbox" class="tx-check" ${excludedFromPDF.has(txKey(t)) ? '' : 'checked'} onchange="togglePdfExclude('${txKey(t).replace(/'/g,"\\'")}')" title="Include in PDF">
       <div class="tx-date">${t.date}</div>
-      <div>${escapeHtml(t.merchant)}${t.source ? `<div class="tx-source">${escapeHtml(t.source)}</div>` : ''}</div>
+      <div class="tx-merchant">${escapeHtml(t.merchant)}${t.source ? `<div class="tx-source">${escapeHtml(t.source)}</div>` : ''}</div>
       <div class="tx-cat">${t.category}</div>
       <div class="tx-amt">$${t.amount.toFixed(2)}</div>
       <button class="tx-del" onclick="deleteTx(${t._idx})" title="Delete">✕</button>
