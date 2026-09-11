@@ -109,7 +109,7 @@
 
   .tx-card h2{font-family:var(--display);font-size:16px;font-weight:600;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
   .tx-card h2 button{font-family:var(--body);font-size:12.5px;font-weight:500;color:var(--teal);background:none;border:none;cursor:pointer;}
-  .tx-row{display:grid;grid-template-columns:80px 1fr 100px 90px 30px;gap:10px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border);font-size:13.5px;}
+  .tx-row{display:grid;grid-template-columns:22px 80px 1fr 100px 90px 30px;gap:10px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--border);font-size:13.5px;}
   .tx-row.tx-header{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-soft);font-weight:600;padding-top:0;padding-bottom:8px;}
   .tx-row.tx-header > div{cursor:pointer;user-select:none;}
   .tx-row.tx-header > div:hover{color:var(--teal);}
@@ -819,6 +819,7 @@ function render(){
   const arrow = f => txSort.field===f ? (txSort.dir==='asc' ? ' ▲' : ' ▼') : '';
   const header = `
     <div class="tx-row tx-header">
+      <div title="Include in PDF"></div>
       <div onclick="setSort('date')">Date${arrow('date')}</div>
       <div onclick="setSort('merchant')">Merchant${arrow('merchant')}</div>
       <div onclick="setSort('category')">Category${arrow('category')}</div>
@@ -829,6 +830,7 @@ function render(){
   const visible = indexed.slice(0, txDisplayLimit);
   txDiv.innerHTML = header + (visible.length ? visible.map(t=>`
     <div class="tx-row">
+      <input type="checkbox" ${excludedFromPDF.has(txKey(t)) ? '' : 'checked'} onchange="togglePdfExclude('${txKey(t).replace(/'/g,"\\'")}')" title="Include in PDF">
       <div class="tx-date">${t.date}</div>
       <div>${escapeHtml(t.merchant)}${t.source ? `<div class="tx-source">${escapeHtml(t.source)}</div>` : ''}</div>
       <div class="tx-cat">${t.category}</div>
@@ -861,6 +863,12 @@ function render(){
 }
 
 let txSort = { field: 'date', dir: 'desc' };
+const excludedFromPDF = new Set();
+function txKey(t){ return `${t.date}|${t.merchant}|${t.amount}`; }
+function togglePdfExclude(key){
+  if(excludedFromPDF.has(key)) excludedFromPDF.delete(key);
+  else excludedFromPDF.add(key);
+}
 let txDisplayLimit = 15;
 function showMoreTx(){
   txDisplayLimit += 15;
@@ -1052,7 +1060,7 @@ function formatCurrencyBlur(el){
 }
 
 function downloadSearchPDF(){
-  const results = getScopedTransactions();
+  const results = getScopedTransactions().filter(t => !excludedFromPDF.has(txKey(t)));
   if(!results.length) return showToast('No transactions match to export');
 
   const { jsPDF } = window.jspdf;
