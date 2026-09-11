@@ -39,25 +39,6 @@ export default async function handler(req, res) {
 
     items[itemId] = { ...item, cursor };
 
-    // --- TEMP DIAGNOSTIC: check whether this institution populates account_owner ---
-    // Plaid's docs say account_owner is "not typically populated" and, when it
-    // is, its format is institution-specific — this checks what Capital One
-    // (or whichever bank this item is) actually sends back. Safe to leave in
-    // short-term; remove once we know the answer, since it's noisy in prod logs.
-    console.log(`[DIAGNOSTIC] item ${itemId} (${item.institution_name}) — accounts:`,
-      (item.accounts || []).map(a => ({ account_id: a.account_id, mask: a.mask, name: a.name }))
-    );
-    console.log(`[DIAGNOSTIC] item ${itemId} — sample account_owner values:`,
-      added.slice(0, 10).map(t => ({
-        account_id: t.account_id,
-        account_owner: t.account_owner,
-        merchant_name: t.merchant_name || t.name,
-        amount: t.amount,
-        date: t.date
-      }))
-    );
-    // --- END TEMP DIAGNOSTIC ---
-
     // Amount sign alone isn't a reliable enough signal to separate real purchases
     // from bill payments/transfers, so also exclude by Plaid's own categorization.
     const EXCLUDED_PFC = ['LOAN_PAYMENTS', 'TRANSFER_IN', 'TRANSFER_OUT', 'INCOME', 'BANK_FEES'];
@@ -74,9 +55,19 @@ export default async function handler(req, res) {
     // source label can say which card, not just which bank.
     const accountMap = {};
     (item.accounts || []).forEach(a => { accountMap[a.account_id] = a; });
+
+    // Confirmed via diagnostic: for this Capital One item, Plaid's account_owner
+    // field carries the actual authorized-user card's last 4 digits per
+    // transaction (e.g. "8337", "7312") — distinct from the shared parent
+    // account mask ("9412") that accountMap gives us. Prefer account_owner
+    // whenever Plaid supplies it; fall back to the account-level mask for
+    // institutions/items where it isn't populated (per Plaid's docs, this
+    // varies by institution and shouldn't be assumed universal).
+    const cardIdFor = (t) => t.account_owner || accountMap[t.account_id]?.mask || '';
+
     const sourceLabelFor = (t) => {
-      const acct = accountMap[t.account_id];
-      if (acct && acct.mask) return `${item.institution_name} •••• ${acct.mask}`;
+      const cardId = cardIdFor(t);
+      if (cardId) return `${item.institution_name} •••• ${cardId}`;
       return item.institution_name;
     };
 
@@ -101,11 +92,10 @@ export default async function handler(req, res) {
         amount: t.amount,
         category: categoryFor(t),
         source: sourceLabelFor(t),
-        account_mask: accountMap[t.account_id]?.mask || '',
-        // --- TEMP DIAGNOSTIC: carry this through to the response too, so you can
-        // see it in the browser network tab / app UI without digging through
-        // Vercel logs. Remove this field once the account_owner question is settled.
-        _diagnostic_account_owner: t.account_owner || null
+        // account_mask is now the real per-card identifier (account_owner) when
+        // Plaid supplies it, not just the shared parent account mask. This is
+        // the field app-state.js and access-keys.js filter restricted keys on.
+        account_mask: cardIdFor(t)
       }));
     allTransactions = allTransactions.concat(tagged);
   }
