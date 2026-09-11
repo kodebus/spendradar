@@ -60,6 +60,18 @@ export default async function handler(req, res) {
       return item.institution_name;
     };
 
+    // Plaid already knows the real category for each transaction — use it
+    // instead of guessing from the merchant name, which is much less accurate.
+    const categoryFor = (t) => {
+      const primary = t.personal_finance_category?.primary;
+      const detailed = t.personal_finance_category?.detailed;
+      if (detailed === 'TRANSPORTATION_GAS') return 'Gas';
+      if (primary === 'FOOD_AND_DRINK') return 'Food';
+      if (primary === 'GENERAL_MERCHANDISE') return 'Shopping';
+      if (primary === 'ENTERTAINMENT') return 'Entertainment';
+      return null; // no confident match — let the frontend fall back to its own guess
+    };
+
     const tagged = added
       .filter(t => !t.pending && t.amount > 0)
       .filter(isRealPurchase)
@@ -67,6 +79,7 @@ export default async function handler(req, res) {
         date: t.date,
         merchant: t.merchant_name || t.name,
         amount: t.amount,
+        category: categoryFor(t),
         source: sourceLabelFor(t)
       }));
     allTransactions = allTransactions.concat(tagged);
