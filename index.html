@@ -758,10 +758,11 @@ function renderConnectionCard(){
     el.style.display = 'block';
     el.style.flexDirection = 'column';
     el.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${connections.length>1?'10px':'0'};">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <div class="connection-sub">${synced}</div>
         <button class="btn-sm primary" onclick="syncBankTransactions()">Sync now</button>
       </div>
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:${connections.length>1?'10px':'0'};">Only shows finalized transactions — pending charges can take a day or more to post.</div>
       ${connections.map(c => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;${connections.length>1?'border-top:1px solid var(--border);':''}">
           <div class="connection-label" style="font-size:13.5px;">🏦 ${escapeHtml(c.institution_name || 'Bank')}${c.mask ? ` •••• ${escapeHtml(c.mask)}` : ''}</div>
