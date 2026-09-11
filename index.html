@@ -373,36 +373,60 @@ function renderNewKeyMaskCheckboxes(){
   // Some institutions (e.g. Capital One with authorized users) only expose
   // ONE account-level mask via bank-status/availableAccounts, but tag each
   // synced transaction with the real per-card mask via Plaid's account_owner
-  // field (see sync-transactions.js). Build the checkbox list from BOTH
-  // sources, keyed on mask, so every card actually seen in transaction
-  // history is selectable — not just the shared parent account.
-  const byMask = {};
-  availableAccounts.forEach(a => { byMask[a.mask] = a.label; });
+  // field (see sync-transactions.js). Build the mask list from BOTH sources,
+  // so every card actually seen in transaction history is selectable — not
+  // just the shared parent account.
+  const fallbackLabel = {};
+  availableAccounts.forEach(a => { fallbackLabel[a.mask] = a.label; });
   (state.transactions || []).forEach(t => {
-    if(!t.account_mask) return;
-    if(!byMask[t.account_mask]) {
-      const nickname = (state.cardNicknames || {})[t.account_mask];
-      byMask[t.account_mask] = nickname
-        ? `${nickname} (•••• ${t.account_mask})`
-        : (t.source || `•••• ${t.account_mask}`);
-    } else if((state.cardNicknames || {})[t.account_mask]) {
-      // Prefer a saved nickname over the raw bank-status label once one exists.
-      byMask[t.account_mask] = `${state.cardNicknames[t.account_mask]} (•••• ${t.account_mask})`;
-    }
+    if(t.account_mask && !fallbackLabel[t.account_mask]) fallbackLabel[t.account_mask] = t.source || `•••• ${t.account_mask}`;
   });
-  const masks = Object.keys(byMask).sort();
+  const masks = Object.keys(fallbackLabel).sort();
 
   if(!masks.length){
     el.innerHTML = '<span style="color:var(--ink-soft);">Connect a bank and sync at least once to see cards you can restrict access to.</span>';
     return;
   }
-  el.innerHTML = masks.map(mask => `
-    <label style="display:flex;align-items:center;gap:6px;">
-      <input type="checkbox" value="${escapeHtml(mask)}" class="new-key-mask-cb">
-      ${escapeHtml(byMask[mask])}
-      <a href="#" onclick="event.preventDefault();renameCard('${escapeHtml(mask)}')" style="font-size:11px;color:var(--ink-soft);margin-left:auto;">rename</a>
-    </label>
-  `).join('');
+
+  // A person can have more than one card (e.g. a lost/replaced card gets a
+  // new last-4 from Capital One, but old transactions stay tagged with the
+  // original one). Cards sharing the same nickname are grouped into a single
+  // selectable row, so scoping a key to "David" covers every mask of his —
+  // not just whichever one happens to be currently active.
+  const nicknames = state.cardNicknames || {};
+  const groups = {}; // nickname -> [masks]
+  const unnamed = [];
+  masks.forEach(mask => {
+    const nick = nicknames[mask];
+    if(nick){ (groups[nick] = groups[nick] || []).push(mask); }
+    else unnamed.push(mask);
+  });
+
+  const rows = [];
+  Object.keys(groups).sort().forEach(nick => {
+    const groupMasks = groups[nick].sort();
+    const value = groupMasks.join(',');
+    const maskList = groupMasks.map(m => '•••• ' + m).join(', ');
+    rows.push(`
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" value="${escapeHtml(value)}" class="new-key-mask-cb">
+        ${escapeHtml(nick)} <span style="color:var(--ink-soft);font-size:11px;">(${maskList})</span>
+        <a href="#" onclick="event.preventDefault();renameGroup('${escapeHtml(nick)}','${escapeHtml(value)}')" style="font-size:11px;color:var(--ink-soft);margin-left:auto;">rename</a>
+        <a href="#" onclick="event.preventDefault();addCardToPerson('${escapeHtml(nick)}')" style="font-size:11px;color:var(--ink-soft);">+ card</a>
+      </label>
+    `);
+  });
+  unnamed.sort().forEach(mask => {
+    rows.push(`
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" value="${escapeHtml(mask)}" class="new-key-mask-cb">
+        ${escapeHtml(fallbackLabel[mask])}
+        <a href="#" onclick="event.preventDefault();renameCard('${escapeHtml(mask)}')" style="font-size:11px;color:var(--ink-soft);margin-left:auto;">rename</a>
+      </label>
+    `);
+  });
+
+  el.innerHTML = rows.join('');
 }
 function renameCard(mask){
   const current = (state.cardNicknames || {})[mask] || '';
@@ -411,6 +435,28 @@ function renameCard(mask){
   state.cardNicknames = state.cardNicknames || {};
   if(name.trim()) state.cardNicknames[mask] = name.trim();
   else delete state.cardNicknames[mask];
+  save();
+  renderNewKeyMaskCheckboxes();
+}
+function renameGroup(oldNick, masksCsv){
+  const masks = masksCsv.split(',');
+  const name = prompt(`Rename "${oldNick}" to (blank to remove the name from all ${masks.length} card(s)):`, oldNick);
+  if(name === null) return; // cancelled
+  state.cardNicknames = state.cardNicknames || {};
+  masks.forEach(m => {
+    if(name.trim()) state.cardNicknames[m] = name.trim();
+    else delete state.cardNicknames[m];
+  });
+  save();
+  renderNewKeyMaskCheckboxes();
+}
+function addCardToPerson(nick){
+  const mask = prompt(`Last 4 digits of another card that also belongs to ${nick} (e.g. an old/replaced card number seen in past transactions):`);
+  if(mask === null) return;
+  const clean = mask.trim();
+  if(!clean) return;
+  state.cardNicknames = state.cardNicknames || {};
+  state.cardNicknames[clean] = nick;
   save();
   renderNewKeyMaskCheckboxes();
 }
@@ -441,7 +487,10 @@ async function loadAccessKeys(){
 }
 async function createAccessKey(){
   const label = document.getElementById('newKeyLabel').value.trim();
-  const checked = [...document.querySelectorAll('.new-key-mask-cb:checked')].map(cb => cb.value);
+  // Each checkbox value may itself be a comma-joined list of masks (a person
+  // with more than one card, e.g. a lost/replaced card) — flatten those back
+  // out into individual masks for the API, which expects a flat array.
+  const checked = [...document.querySelectorAll('.new-key-mask-cb:checked')].flatMap(cb => cb.value.split(','));
   if(!label) return showToast('Enter a name for this key');
   if(!checked.length) return showToast('Check at least one card for this key to see');
   try{
