@@ -1,10 +1,11 @@
 import { kv } from '@vercel/kv';
-import { requireAppSecret, plaidBaseUrl, plaidCredentials } from './_auth.js';
+import { requireAccess, plaidBaseUrl, plaidCredentials } from './_auth.js';
 
 const STORE_KEY = 'spendradar:plaid_items';
 
 export default async function handler(req, res) {
-  if (!requireAppSecret(req, res)) return;
+  const scope = await requireAccess(req, res);
+  if (scope === false) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const items = (await kv.get(STORE_KEY)) || {};
@@ -80,11 +81,19 @@ export default async function handler(req, res) {
         merchant: t.merchant_name || t.name,
         amount: t.amount,
         category: categoryFor(t),
-        source: sourceLabelFor(t)
+        source: sourceLabelFor(t),
+        account_mask: accountMap[t.account_id]?.mask || ''
       }));
     allTransactions = allTransactions.concat(tagged);
   }
 
   await kv.set(STORE_KEY, items);
+
+  // A restricted key only ever sees transactions from the specific card(s)
+  // it's scoped to — this is enforced here, not just hidden in the UI.
+  if (scope && scope.allowedMasks) {
+    allTransactions = allTransactions.filter(t => scope.allowedMasks.includes(t.account_mask));
+  }
+
   res.status(200).json({ transactions: allTransactions });
 }
