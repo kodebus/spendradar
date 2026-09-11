@@ -1,7 +1,10 @@
-import { requireAppSecret, plaidBaseUrl, plaidCredentials } from './_auth.js';
+import { requireFullAccess, plaidBaseUrl, plaidCredentials } from './_auth.js';
 
 export default async function handler(req, res) {
-  if (!requireAppSecret(req, res)) return;
+  // Only the master key can start a new bank link — a restricted key must
+  // never be able to add its own bank connections.
+  const ok = await requireFullAccess(req, res);
+  if (!ok) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const response = await fetch(`${plaidBaseUrl()}/link/token/create`, {
@@ -16,7 +19,6 @@ export default async function handler(req, res) {
       language: 'en'
     })
   });
-
   const data = await response.json();
   if (!response.ok) return res.status(response.status).json(data);
   res.status(200).json({ link_token: data.link_token });
