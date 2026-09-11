@@ -471,6 +471,7 @@ function parseCsv(text){
   state.manualMethod = 'csv';
   save();
   renderConnectionCard();
+  setBankStatus('');
 }
 
 // ---------- paste text import ----------
@@ -534,6 +535,7 @@ function handlePasteText(){
   save();
   renderConnectionCard();
   document.getElementById('pasteInput').value = '';
+  setBankStatus('');
 }
 
 // ---------- bank connection (Plaid) ----------
@@ -663,7 +665,7 @@ async function syncBankTransactions(){
       date: t.date,
       merchant: t.merchant,
       amount: Math.abs(t.amount),
-      category: guessCategory(t.merchant || ''),
+      category: t.category || guessCategory(t.merchant || ''),
       source: t.source || 'Bank'
     }));
     startReview(parsed);
