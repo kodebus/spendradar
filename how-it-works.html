@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>How Spend Radar Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --navy:#16233D; --teal:#1F6F6B; --teal-dark:#164F4C; --teal-light:#E4F1F0;
+    --white:#FFFFFF; --off-white:#F6F8FB; --ink:#16233D; --ink-soft:#5B6B85;
+    --border:#E2E8F0; --mono:'IBM Plex Mono',monospace; --sans:'Inter',sans-serif; --display:'Space Grotesk',sans-serif;
+  }
+  html{scroll-behavior:smooth;}
+  body{font-family:var(--sans);background:var(--off-white);color:var(--ink);line-height:1.7;}
+
+  nav{background:var(--navy);padding:16px 40px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+  .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
+  .nav-logo-icon{width:30px;height:30px;background:var(--teal);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;color:white;}
+  .nav-logo-text{font-family:var(--display);font-size:16px;font-weight:700;color:white;}
+  .nav-cta{font-family:var(--body);font-size:13px;font-weight:600;color:white;background:var(--teal);padding:9px 18px;border-radius:8px;text-decoration:none;}
+  .nav-cta:hover{background:var(--teal-dark);}
+
+  .hero{background:var(--navy);padding:64px 40px 56px;text-align:center;}
+  .hero-label{font-family:var(--mono);font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--teal);margin-bottom:16px;}
+  .hero h1{font-family:var(--display);font-size:clamp(30px,5vw,52px);font-weight:700;color:white;letter-spacing:-1px;line-height:1.15;margin-bottom:18px;}
+  .hero h1 span{color:var(--teal);}
+  .hero p{max-width:560px;margin:0 auto 28px;color:rgba(255,255,255,0.65);font-size:16px;}
+  .hero-buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+  .btn-primary{background:var(--teal);color:white;font-weight:600;padding:13px 26px;border-radius:9px;text-decoration:none;font-size:14.5px;}
+  .btn-primary:hover{background:var(--teal-dark);}
+  .btn-secondary{background:rgba(255,255,255,0.08);color:white;font-weight:600;padding:13px 26px;border-radius:9px;text-decoration:none;font-size:14.5px;border:1px solid rgba(255,255,255,0.15);}
+
+  .content{max-width:880px;margin:0 auto;padding:64px 24px;}
+  .section{margin-bottom:64px;}
+  .section-label{font-family:var(--mono);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--teal);margin-bottom:10px;}
+  .section h2{font-family:var(--display);font-size:26px;font-weight:700;letter-spacing:-0.5px;margin-bottom:16px;}
+  .section > p{color:var(--ink-soft);font-size:15.5px;max-width:680px;margin-bottom:8px;}
+
+  .step-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:28px;}
+  @media (max-width:760px){.step-grid{grid-template-columns:1fr;}}
+  .step-card{background:white;border:1px solid var(--border);border-radius:12px;padding:22px;}
+  .step-num{font-family:var(--mono);font-size:12px;color:var(--teal);font-weight:600;margin-bottom:10px;}
+  .step-card h3{font-family:var(--display);font-size:16px;font-weight:600;margin-bottom:8px;}
+  .step-card p{color:var(--ink-soft);font-size:13.5px;}
+
+  .feature-list{display:flex;flex-direction:column;gap:0;margin-top:24px;}
+  .feature{display:grid;grid-template-columns:44px 1fr;gap:18px;padding:24px 0;border-bottom:1px solid var(--border);}
+  .feature:last-child{border-bottom:none;}
+  .feature-icon{width:44px;height:44px;border-radius:10px;background:var(--teal-light);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+  .feature h3{font-family:var(--display);font-size:17px;font-weight:600;margin-bottom:6px;}
+  .feature p{color:var(--ink-soft);font-size:14.5px;margin-bottom:6px;}
+  .feature ul{margin:8px 0 0 18px;color:var(--ink-soft);font-size:14px;}
+  .feature li{margin-bottom:4px;}
+
+  .callout{background:white;border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:9px;padding:18px 22px;margin-top:16px;font-size:14px;color:var(--ink-soft);}
+  .callout strong{color:var(--ink);}
+
+  .faq{background:white;border:1px solid var(--border);border-radius:10px;padding:20px 22px;margin-bottom:12px;}
+  .faq h4{font-family:var(--display);font-size:15px;font-weight:600;margin-bottom:8px;}
+  .faq p{color:var(--ink-soft);font-size:14px;}
+
+  .cta-band{background:var(--navy);border-radius:16px;padding:44px;text-align:center;margin-top:8px;}
+  .cta-band h2{font-family:var(--display);color:white;font-size:24px;font-weight:700;margin-bottom:12px;}
+  .cta-band p{color:rgba(255,255,255,0.6);font-size:14.5px;margin-bottom:24px;}
+
+  footer{background:#101B30;padding:28px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  .footer-logo{font-family:var(--display);font-size:14px;font-weight:700;color:white;}
+  .footer-link{font-size:12px;color:rgba(255,255,255,0.45);text-decoration:none;font-family:var(--mono);}
+  .footer-link:hover{color:var(--teal);}
+
+  @media (max-width:600px){
+    nav{padding:14px 20px;}
+    .hero{padding:48px 20px 40px;}
+    .content{padding:48px 20px;}
+    footer{padding:24px 20px;flex-direction:column;text-align:center;}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="https://japps.ai" class="nav-logo">
+    <div class="nav-logo-icon">◎</div>
+    <span class="nav-logo-text">Spend Radar</span>
+  </a>
+  <a href="index.html" class="nav-cta">Open the app →</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-label">How it works</div>
+  <h1>See exactly where <span>every card's money</span> goes.</h1>
+  <p>Spend Radar links your bank accounts through Plaid, sorts every charge into a category, and lets you search, filter, and export a clean report whenever you need one — across as many banks and cards as you use.</p>
+  <div class="hero-buttons">
+    <a href="index.html" class="btn-primary">Open Spend Radar →</a>
+    <a href="#getting-started" class="btn-secondary">See how it works ↓</a>
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="section" id="getting-started">
+    <div class="section-label">Getting Started</div>
+    <h2>Three steps to your first report</h2>
+    <p>Whether you're linking a real bank account or just want to try it with a spreadsheet of transactions, here's the general flow.</p>
+    <div class="step-grid">
+      <div class="step-card">
+        <div class="step-num">Step 1</div>
+        <h3>Enter your App secret</h3>
+        <p>Open Settings and paste in the shared App secret — this is what lets your device see the same data as everyone else using this Spend Radar. Ask whoever set it up if you don't have it.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">Step 2</div>
+        <h3>Bring in your transactions</h3>
+        <p>From the left sidebar: link a real bank through Plaid for automatic ongoing syncing, or upload a CSV / paste text copied from your bank's activity page.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">Step 3</div>
+        <h3>Search, review, export</h3>
+        <p>Use the search card to filter by date, category, or which bank/card a charge came from — then download a clean PDF or CSV whenever you need one.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Features</div>
+    <h2>Everything Spend Radar does</h2>
+
+    <div class="feature-list">
+
+      <div class="feature">
+        <div class="feature-icon">🏦</div>
+        <div>
+          <h3>Connect Bank (via Plaid)</h3>
+          <p>Link one or more bank accounts directly — your login credentials are entered on your bank's own screen and are never seen by Spend Radar. Once linked, new transactions sync automatically.</p>
+          <ul>
+            <li>Supports multiple banks at once — connect as many as you use</li>
+            <li>If one login covers several cards, each transaction is tagged with the specific card it came from (e.g. "Capital One •••• 4417")</li>
+            <li>Bill payments, transfers, and refunds are automatically filtered out — only real purchases count as spending</li>
+            <li>"Sync now" pulls in anything new since the last check; "Disconnect" removes a bank's live connection without deleting transactions already added</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">📄</div>
+        <div>
+          <h3>Manual import — CSV or pasted text</h3>
+          <p>Prefer not to link an account, or want to add something from a bank that isn't supported? Two manual options exist side by side with the bank connection.</p>
+          <ul>
+            <li><strong>Upload CSV</strong> — a standard bank export with Date, Description, and Amount columns, auto-detected</li>
+            <li><strong>Paste transactions</strong> — copy activity straight from your bank's website, even if it runs together with no clear line breaks</li>
+            <li>Every import shows a review screen first — nothing gets added until you confirm, and duplicates are automatically flagged</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🏷️</div>
+        <div>
+          <h3>Automatic categories</h3>
+          <p>Bank-synced transactions use the real category Plaid assigns (Food & Drink, Gas, Merchandise, Entertainment); manually entered transactions get a best-guess category based on the merchant name. Every category is editable at a glance from the sidebar chart and the category breakdown.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🔍</div>
+        <div>
+          <h3>Search & filter</h3>
+          <p>The Search card lets you slice your transaction history any way you need:</p>
+          <ul>
+            <li>By date range (From / To)</li>
+            <li>By category</li>
+            <li>By source — which bank, which specific card, or "CSV upload" / "Pasted transactions"</li>
+          </ul>
+          <p>Leaving everything blank and clicking "Clear" shows every transaction you have, with no restriction. With nothing searched, the view defaults to your current billing cycle.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <div>
+          <h3>Sort your transaction list</h3>
+          <p>Click any column header — Date, Merchant, Category, or Amount — to sort the list, and click again to reverse the order.</p>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🧾</div>
+        <div>
+          <h3>PDF & CSV export</h3>
+          <p>The Total card generates a polished PDF report of whatever's currently in view — a real table with Date, Merchant, Category, Source, and Amount columns, plus a category breakdown up top.</p>
+          <ul>
+            <li>Uncheck any transaction in the list to leave it out of the PDF without deleting it</li>
+            <li>Optionally enter a spending limit just for that report to see a live "Remaining" figure</li>
+            <li>"Export CSV" downloads your full transaction list as a spreadsheet-ready file — a good periodic backup independent of the app itself</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">🔄</div>
+        <div>
+          <h3>Shared across devices</h3>
+          <p>Enter the same App secret on any device — phone, laptop, someone else's computer — and you'll see the same live data. Nothing is tied to one browser.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Good to Know</div>
+    <h2>A few honest limitations</h2>
+    <div class="callout">
+      <strong>Once Plaid delivers a transaction, it won't resend it.</strong> If you delete a bank-synced transaction, clicking "Sync now" won't bring it back — that specific charge is gone unless you re-enter it manually or fully disconnect and relink the bank (which re-pulls full history).
+    </div>
+    <div class="callout">
+      <strong>There's no per-person login.</strong> Everyone using the same App secret sees and can edit the exact same shared data — there's no way to give one person view-only access while restricting bank management to someone else.
+    </div>
+    <div class="callout">
+      <strong>Checkbox exclusions on the PDF are temporary.</strong> They reset if you reload the page — they're meant for "leave this one thing out of the report I'm about to send," not a permanent setting.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">FAQ</div>
+    <h2>Common questions</h2>
+    <div class="faq">
+      <h4>Is my bank login safe?</h4>
+      <p>Yes — your username and password are entered directly on your bank's own login screen through Plaid, a service used by thousands of financial apps. Spend Radar never sees or stores your bank credentials.</p>
+    </div>
+    <div class="faq">
+      <h4>What is the "App secret," and why do I need it?</h4>
+      <p>It's a shared password that lets your device talk to the same backend everyone else on this Spend Radar uses. Without it, the app has no way to know which data belongs to you versus starting from scratch.</p>
+    </div>
+    <div class="faq">
+      <h4>Can I use this without connecting a real bank account?</h4>
+      <p>Yes — CSV upload and pasting transaction text both work entirely independently of Plaid, with no bank connection required at all.</p>
+    </div>
+  </div>
+
+  <div class="cta-band">
+    <h2>Ready to see where it's all going?</h2>
+    <p>Open Spend Radar and connect your first account, or import a CSV to get started.</p>
+    <a href="index.html" class="btn-primary">Open Spend Radar →</a>
+  </div>
+
+</div>
+
+<footer>
+  <div class="footer-logo">◎ Spend Radar</div>
+  <a href="privacy.html" class="footer-link">Privacy Policy</a>
+  <a href="https://japps.ai" class="footer-link" target="_blank">japps.ai →</a>
+</footer>
+
+</body>
+</html>
