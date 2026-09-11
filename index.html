@@ -143,6 +143,7 @@
     <a href="https://japps.ai" class="nav-back">← Japps.ai</a>
     <a href="how-it-works.html" class="nav-back">How it works</a>
     <div class="brand"><div class="brand-icon">◎</div><div class="brand-name">Spend Radar</div></div>
+    <div id="restrictedLabel" style="display:none;font-family:var(--mono);font-size:11px;color:var(--ink-soft);background:var(--teal-light);padding:3px 8px;border-radius:6px;margin-left:8px;"></div>
   </div>
   <div class="nav-right">
     <button class="settings-btn" onclick="openSettings()">Settings</button>
@@ -273,6 +274,16 @@
       <label>App secret (required for Connect bank — must match APP_SECRET in Vercel)</label>
       <input type="password" id="setAppSecret" placeholder="paste the same value set in Vercel">
     </div>
+    <div class="field" id="accessKeysField" style="display:none;">
+      <label>Restricted access keys</label>
+      <div id="accessKeysList" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;background:var(--off-white);border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <input type="text" id="newKeyLabel" placeholder="Who is this for? e.g. David" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        <div id="newKeyMasks" style="font-size:12.5px;display:flex;flex-direction:column;gap:4px;"></div>
+        <button type="button" class="btn-sm primary" onclick="createAccessKey()" style="align-self:flex-start;">Create key</button>
+      </div>
+      <div class="hint" style="margin-top:6px;">A restricted key only ever sees transactions from the card(s) you check above — not your other cards, and it can't connect or disconnect banks.</div>
+    </div>
     <div class="modal-buttons" style="justify-content:space-between;">
       <button type="button" style="background:none;border:none;color:var(--red);font-size:12.5px;cursor:pointer;padding:0;" onclick="resetApp()">Reset everything</button>
       <div style="display:flex;gap:10px;">
@@ -349,6 +360,84 @@ function openSettings(){
   document.getElementById('setCycle').value = state.cycleDay || '';
   document.getElementById('setAppSecret').value = state.appSecret || '';
   document.getElementById('settingsModal').classList.add('open');
+  applyRestrictedViewUI();
+  if(!isRestrictedView){
+    renderNewKeyMaskCheckboxes();
+    loadAccessKeys();
+  }
+}
+function renderNewKeyMaskCheckboxes(){
+  const el = document.getElementById('newKeyMasks');
+  if(!el) return;
+  if(!availableAccounts.length){
+    el.innerHTML = '<span style="color:var(--ink-soft);">Connect a bank first to see cards you can restrict access to.</span>';
+    return;
+  }
+  el.innerHTML = availableAccounts.map(a => `
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" value="${escapeHtml(a.mask)}" class="new-key-mask-cb">
+      ${escapeHtml(a.label)}
+    </label>
+  `).join('');
+}
+async function loadAccessKeys(){
+  const el = document.getElementById('accessKeysList');
+  if(!el || !state.appSecret) return;
+  try{
+    const res = await fetch('/api/access-keys', { method:'GET', headers:{ 'x-app-secret': state.appSecret } });
+    if(!res.ok){ el.textContent = 'Could not load keys.'; return; }
+    const { keys } = await res.json();
+    if(!keys.length){ el.innerHTML = '<em>No restricted keys created yet.</em>'; return; }
+    el.innerHTML = keys.map(k => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <strong style="color:var(--ink);">${escapeHtml(k.label)}</strong> — ${k.allowedMasks.map(m=>'•••• '+escapeHtml(m)).join(', ')}<br>
+          <span style="font-family:var(--mono);font-size:11px;">${escapeHtml(k.secret)}</span>
+        </div>
+        <button type="button" onclick="revokeAccessKey('${k.secret}')" style="background:none;border:none;color:var(--red);font-size:12px;cursor:pointer;">Revoke</button>
+      </div>
+    `).join('');
+  }catch(err){
+    console.error(err);
+    el.textContent = 'Could not load keys.';
+  }
+}
+async function createAccessKey(){
+  const label = document.getElementById('newKeyLabel').value.trim();
+  const checked = [...document.querySelectorAll('.new-key-mask-cb:checked')].map(cb => cb.value);
+  if(!label) return showToast('Enter a name for this key');
+  if(!checked.length) return showToast('Check at least one card for this key to see');
+  try{
+    const res = await fetch('/api/access-keys', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-app-secret': state.appSecret },
+      body: JSON.stringify({ label, allowedMasks: checked })
+    });
+    if(!res.ok) throw new Error('failed');
+    document.getElementById('newKeyLabel').value = '';
+    document.querySelectorAll('.new-key-mask-cb').forEach(cb => cb.checked = false);
+    await loadAccessKeys();
+    showToast(`Key created for ${label} — copy it from the list above to share`);
+  }catch(err){
+    console.error(err);
+    showToast('Could not create key. Try again.');
+  }
+}
+async function revokeAccessKey(secret){
+  if(!confirm('Revoke this key? Whoever has it will lose access immediately.')) return;
+  try{
+    const res = await fetch('/api/access-keys', {
+      method:'DELETE',
+      headers:{ 'Content-Type':'application/json', 'x-app-secret': state.appSecret },
+      body: JSON.stringify({ secret })
+    });
+    if(!res.ok) throw new Error('failed');
+    await loadAccessKeys();
+    showToast('Key revoked');
+  }catch(err){
+    console.error(err);
+    showToast('Could not revoke key. Try again.');
+  }
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.remove('open'); }
 async function saveSettings(){
@@ -864,6 +953,8 @@ function render(){
   updateRemainingDisplay();
 }
 
+let isRestrictedView = false;
+let availableAccounts = [];
 let txSort = { field: 'date', dir: 'desc' };
 const excludedFromPDF = new Set();
 function txKey(t){ return `${t.date}|${t.merchant}|${t.amount}`; }
@@ -1147,13 +1238,29 @@ async function refreshBankConnections(){
       headers:{ 'x-app-secret': state.appSecret }
     });
     if(!res.ok) return;
-    const { connections } = await res.json();
+    const { connections, restricted, label } = await res.json();
     state.bankConnections = connections || [];
+    isRestrictedView = !!restricted;
+    const labelEl = document.getElementById('restrictedLabel');
+    if(labelEl){
+      labelEl.style.display = isRestrictedView ? 'inline-block' : 'none';
+      labelEl.textContent = isRestrictedView ? `Viewing: ${label || 'restricted'}` : '';
+    }
+    availableAccounts = (connections || []).flatMap(c =>
+      (c.accounts || []).map(a => ({ label: `${c.institution_name} •••• ${a.mask}`, mask: a.mask }))
+    );
     save();
     renderConnectionCard();
+    applyRestrictedViewUI();
   }catch(err){
     console.error(err);
   }
+}
+function applyRestrictedViewUI(){
+  const connectBtn = document.getElementById('connectBankBtn');
+  if(connectBtn) connectBtn.style.display = isRestrictedView ? 'none' : 'flex';
+  const keysCard = document.getElementById('accessKeysField');
+  if(keysCard) keysCard.style.display = isRestrictedView ? 'none' : 'block';
 }
 async function checkBankStatus(){
   await refreshBankConnections();
