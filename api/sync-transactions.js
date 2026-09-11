@@ -39,6 +39,25 @@ export default async function handler(req, res) {
 
     items[itemId] = { ...item, cursor };
 
+    // --- TEMP DIAGNOSTIC: check whether this institution populates account_owner ---
+    // Plaid's docs say account_owner is "not typically populated" and, when it
+    // is, its format is institution-specific — this checks what Capital One
+    // (or whichever bank this item is) actually sends back. Safe to leave in
+    // short-term; remove once we know the answer, since it's noisy in prod logs.
+    console.log(`[DIAGNOSTIC] item ${itemId} (${item.institution_name}) — accounts:`,
+      (item.accounts || []).map(a => ({ account_id: a.account_id, mask: a.mask, name: a.name }))
+    );
+    console.log(`[DIAGNOSTIC] item ${itemId} — sample account_owner values:`,
+      added.slice(0, 10).map(t => ({
+        account_id: t.account_id,
+        account_owner: t.account_owner,
+        merchant_name: t.merchant_name || t.name,
+        amount: t.amount,
+        date: t.date
+      }))
+    );
+    // --- END TEMP DIAGNOSTIC ---
+
     // Amount sign alone isn't a reliable enough signal to separate real purchases
     // from bill payments/transfers, so also exclude by Plaid's own categorization.
     const EXCLUDED_PFC = ['LOAN_PAYMENTS', 'TRANSFER_IN', 'TRANSFER_OUT', 'INCOME', 'BANK_FEES'];
@@ -82,7 +101,11 @@ export default async function handler(req, res) {
         amount: t.amount,
         category: categoryFor(t),
         source: sourceLabelFor(t),
-        account_mask: accountMap[t.account_id]?.mask || ''
+        account_mask: accountMap[t.account_id]?.mask || '',
+        // --- TEMP DIAGNOSTIC: carry this through to the response too, so you can
+        // see it in the browser network tab / app UI without digging through
+        // Vercel logs. Remove this field once the account_owner question is settled.
+        _diagnostic_account_owner: t.account_owner || null
       }));
     allTransactions = allTransactions.concat(tagged);
   }
