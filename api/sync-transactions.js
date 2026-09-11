@@ -77,7 +77,7 @@ export default async function handler(req, res) {
       .filter(t => !t.pending && t.amount > 0)
       .filter(isRealPurchase)
       .map(t => ({
-        date: t.date,
+        date: t.authorized_date || t.date,
         merchant: t.merchant_name || t.name,
         amount: t.amount,
         category: categoryFor(t),
