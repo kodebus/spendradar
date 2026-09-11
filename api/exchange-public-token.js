@@ -1,10 +1,11 @@
 import { kv } from '@vercel/kv';
-import { requireAppSecret, plaidBaseUrl, plaidCredentials } from './_auth.js';
+import { requireFullAccess, plaidBaseUrl, plaidCredentials } from './_auth.js';
 
 const STORE_KEY = 'spendradar:plaid_items';
 
 export default async function handler(req, res) {
-  if (!requireAppSecret(req, res)) return;
+  const ok = await requireFullAccess(req, res);
+  if (!ok) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { public_token, institution_name, institution_id, mask } = req.body || {};
