@@ -164,7 +164,7 @@
 
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(22,35,61,0.45);z-index:50;align-items:center;justify-content:center;padding:20px;}
   .modal-overlay.open{display:flex;}
-  .modal{background:white;border-radius:16px;padding:28px;max-width:420px;width:100%;}
+  .modal{background:white;border-radius:16px;padding:28px;max-width:420px;width:100%;max-height:calc(100% - 8px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
   .modal h3{font-family:var(--display);font-size:17px;font-weight:600;margin-bottom:18px;}
   .field{margin-bottom:16px;}
   .field label{display:block;font-size:12.5px;font-weight:500;color:var(--ink-soft);margin-bottom:6px;}
@@ -395,10 +395,31 @@ async function pullStateFromServer(){
   }
 }
 
+// On iOS Safari, opening the keyboard shrinks the VISUAL viewport but a
+// position:fixed element (like the settings modal overlay) stays sized to
+// the LAYOUT viewport — it doesn't shrink to match. That mismatch is what
+// causes the overlay/textbox to appear to jump or become unreachable once
+// the keyboard is up. Keeping the overlay's own height/position in sync
+// with window.visualViewport fixes this: the overlay only ever occupies
+// the space actually visible above the keyboard, so its content (and the
+// .modal's own overflow-y:auto, added alongside this) can be reached and
+// scrolled normally.
+function syncModalOverlayToViewport(){
+  const overlay = document.getElementById('settingsModal');
+  if(!overlay || !window.visualViewport) return;
+  overlay.style.height = window.visualViewport.height + 'px';
+  overlay.style.top = window.visualViewport.offsetTop + 'px';
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', syncModalOverlayToViewport);
+  window.visualViewport.addEventListener('scroll', syncModalOverlayToViewport);
+}
+
 function openSettings(){
   document.getElementById('setCycle').value = state.cycleDay || '';
   document.getElementById('setAppSecret').value = state.appSecret || '';
   document.getElementById('settingsModal').classList.add('open');
+  syncModalOverlayToViewport();
   applyRestrictedViewUI();
   if(!isRestrictedView){
     renderNewKeyMaskCheckboxes();
