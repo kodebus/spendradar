@@ -79,7 +79,12 @@
        Restoring the default (stretch) makes .wrap fill 100% of the screen
        width like it's supposed to. */
     .app-shell{flex-direction:column;align-items:stretch;}
-    .wrap{padding:16px 16px 0;}
+    /* Belt-and-suspenders: align-items:stretch above SHOULD be enough to
+       make .wrap fill the full width, and fixes the alignment bug — but
+       verified live that stretch alone still wasn't reliably winning out
+       over this element's own content-driven sizing in this layout. An
+       explicit width forces it, regardless of that engine quirk. */
+    .wrap{width:100%;padding:16px 16px 0;}
     .sidebar{width:100%;position:static;padding:16px 16px 0;display:flex;flex-direction:row;gap:6px;overflow-x:auto;}
     .sidebar-title{display:none;}
     .nav-item{flex-direction:row;align-items:center;gap:6px;white-space:nowrap;width:auto;}
