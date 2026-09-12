@@ -415,13 +415,21 @@ if(window.visualViewport){
   window.visualViewport.addEventListener('scroll', syncModalOverlayToViewport);
 }
 
-function openSettings(){
+async function openSettings(){
   document.getElementById('setCycle').value = state.cycleDay || '';
   document.getElementById('setAppSecret').value = state.appSecret || '';
   document.getElementById('settingsModal').classList.add('open');
   syncModalOverlayToViewport();
   applyRestrictedViewUI();
   if(!isRestrictedView){
+    // Always refresh from the shared backend before showing the restricted-
+    // key checkboxes, rather than relying on saveSettings()'s "first time
+    // this device has ever had a secret" check — that check only fires
+    // once per device, so a device that already had a (possibly stale or
+    // never-synced) secret saved locally would otherwise show an empty
+    // "connect a bank and sync" placeholder even though the shared backend
+    // genuinely has transactions.
+    if(state.appSecret) await pullStateFromServer();
     renderNewKeyMaskCheckboxes();
     loadAccessKeys();
   }
