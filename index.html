@@ -516,7 +516,7 @@ function renderNewKeyMaskCheckboxes(){
     const maskList = groupMasks.map(m => '•••• ' + m).join(', ');
     rows.push(`
       <label class="key-row">
-        <input type="checkbox" value="${escapeHtml(value)}" class="new-key-mask-cb">
+        <input type="checkbox" value="${escapeHtml(value)}" class="new-key-mask-cb" data-nick="${escapeHtml(nick)}" onchange="autofillKeyLabel()">
         <span class="key-row-label" title="${escapeHtml(nick)} (${escapeHtml(maskList)})">${escapeHtml(nick)} <span style="color:var(--ink-soft);">(${escapeHtml(maskList)})</span></span>
         <span class="key-row-actions">
           <a href="#" onclick="event.preventDefault();renameGroup('${escapeHtml(nick)}','${escapeHtml(value)}')">rename</a>
@@ -528,7 +528,7 @@ function renderNewKeyMaskCheckboxes(){
   unnamed.sort().forEach(mask => {
     rows.push(`
       <label class="key-row">
-        <input type="checkbox" value="${escapeHtml(mask)}" class="new-key-mask-cb">
+        <input type="checkbox" value="${escapeHtml(mask)}" class="new-key-mask-cb" onchange="autofillKeyLabel()">
         <span class="key-row-label" title="${escapeHtml(fallbackLabel[mask])}">${escapeHtml(fallbackLabel[mask])}</span>
         <span class="key-row-actions">
           <a href="#" onclick="event.preventDefault();renameCard('${escapeHtml(mask)}')">rename</a>
@@ -538,6 +538,19 @@ function renderNewKeyMaskCheckboxes(){
   });
 
   el.innerHTML = rows.join('');
+}
+let lastAutofilledKeyLabel = ''; // tracks our own auto-filled value, so switching the checked person updates it, but anything YOU typed is never overwritten
+function autofillKeyLabel(){
+  const labelInput = document.getElementById('newKeyLabel');
+  if(!labelInput) return;
+  // Only touch the field if it's currently empty or still holds exactly
+  // what we last auto-filled — anything the user typed themselves is
+  // left alone completely.
+  if(labelInput.value.trim() && labelInput.value !== lastAutofilledKeyLabel) return;
+  const checked = [...document.querySelectorAll('.new-key-mask-cb:checked')];
+  const singleNamedNick = (checked.length === 1 && checked[0].dataset.nick) ? checked[0].dataset.nick : '';
+  labelInput.value = singleNamedNick;
+  lastAutofilledKeyLabel = singleNamedNick;
 }
 function renameCard(mask){
   const current = (state.cardNicknames || {})[mask] || '';
@@ -620,6 +633,7 @@ async function createAccessKey(){
     });
     if(!res.ok) throw new Error('failed');
     document.getElementById('newKeyLabel').value = '';
+    lastAutofilledKeyLabel = '';
     document.querySelectorAll('.new-key-mask-cb').forEach(cb => cb.checked = false);
     await loadAccessKeys();
     showToast(`Key created for ${label} — copy it from the list above to share`);
