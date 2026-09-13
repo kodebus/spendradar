@@ -36,7 +36,44 @@ export default async function handler(req, res) {
     const body = req.body || {};
 
     if (scope === null) {
-      // Master can save the full shared state, same as before.
+      // Master can save the full shared state — but NOT as a blind
+      // overwrite anymore. A device with stale/empty local transactions
+      // (e.g. one that's never actually synced) triggers a routine
+      // autosave just by opening Settings and clicking Save, which used
+      // to blow away every other device's real transaction history with
+      // nothing. That exact scenario happened and lost 254 real
+      // transactions before this fix.
+      //
+      // Guard: if this save's transactions are drastically smaller than
+      // what's already stored (and there was meaningfully more than a
+      // handful stored — normal single/few-transaction deletes are still
+      // allowed through untouched), treat it as a likely accidental wipe
+      // rather than an intentional edit, UNLESS the client explicitly
+      // marks it as a confirmed reset (only "Reset everything" in
+      // Settings does this, after the user has already confirmed a
+      // destructive-action prompt).
+      const existingTxCount = (stored.transactions || []).length;
+      const incomingTxCount = Array.isArray(body.transactions) ? body.transactions.length : 0;
+      const looksLikeAccidentalWipe =
+        existingTxCount > 5 &&
+        incomingTxCount < existingTxCount * 0.5 &&
+        !body.confirmReset;
+
+      if (looksLikeAccidentalWipe) {
+        // Apply every OTHER field from this save normally (cycle day, app
+        // secret, card nicknames, bank connections, etc.) — just don't let
+        // the transactions field itself overwrite with something that
+        // looks like accidental data loss.
+        const safe = { ...stored, ...body, transactions: stored.transactions || [] };
+        await kv.set(STORE_KEY, safe);
+        return res.status(200).json({
+          saved: true,
+          transactionsProtected: true,
+          existingTxCount,
+          incomingTxCount
+        });
+      }
+
       await kv.set(STORE_KEY, body);
       return res.status(200).json({ saved: true });
     }
