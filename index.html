@@ -165,6 +165,19 @@
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(22,35,61,0.45);z-index:50;align-items:center;justify-content:center;padding:20px;}
   .modal-overlay.open{display:flex;}
   .modal{background:white;border-radius:16px;padding:28px;max-width:420px;width:100%;max-height:calc(100% - 8px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  /* Restricted-key checkbox rows and the saved-keys list both need the same
+     three aligned columns (checkbox/name, label, actions) — a plain flex
+     row let the label text wrap onto two lines in a narrow modal, which
+     threw off alignment between rows. Grid with fixed track sizes keeps
+     every row's checkbox, label, and action links lined up regardless of
+     label length, and truncates instead of wrapping. */
+  .key-row{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;column-gap:8px;padding:5px 0;}
+  .key-row .key-row-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;}
+  .key-row .key-row-actions{display:flex;gap:8px;white-space:nowrap;}
+  .key-row .key-row-actions a{font-size:11px;color:var(--ink-soft);}
+  .saved-key-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;column-gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .saved-key-row .saved-key-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .saved-key-row .saved-key-secret{font-family:var(--mono);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;}
   .modal h3{font-family:var(--display);font-size:17px;font-weight:600;margin-bottom:18px;}
   .field{margin-bottom:16px;}
   .field label{display:block;font-size:12.5px;font-weight:500;color:var(--ink-soft);margin-bottom:6px;}
@@ -496,20 +509,24 @@ function renderNewKeyMaskCheckboxes(){
     const value = groupMasks.join(',');
     const maskList = groupMasks.map(m => '•••• ' + m).join(', ');
     rows.push(`
-      <label style="display:flex;align-items:center;gap:6px;">
+      <label class="key-row">
         <input type="checkbox" value="${escapeHtml(value)}" class="new-key-mask-cb">
-        ${escapeHtml(nick)} <span style="color:var(--ink-soft);font-size:11px;">(${maskList})</span>
-        <a href="#" onclick="event.preventDefault();renameGroup('${escapeHtml(nick)}','${escapeHtml(value)}')" style="font-size:11px;color:var(--ink-soft);margin-left:auto;">rename</a>
-        <a href="#" onclick="event.preventDefault();addCardToPerson('${escapeHtml(nick)}')" style="font-size:11px;color:var(--ink-soft);">+ card</a>
+        <span class="key-row-label" title="${escapeHtml(nick)} (${escapeHtml(maskList)})">${escapeHtml(nick)} <span style="color:var(--ink-soft);">(${escapeHtml(maskList)})</span></span>
+        <span class="key-row-actions">
+          <a href="#" onclick="event.preventDefault();renameGroup('${escapeHtml(nick)}','${escapeHtml(value)}')">rename</a>
+          <a href="#" onclick="event.preventDefault();addCardToPerson('${escapeHtml(nick)}')">+ card</a>
+        </span>
       </label>
     `);
   });
   unnamed.sort().forEach(mask => {
     rows.push(`
-      <label style="display:flex;align-items:center;gap:6px;">
+      <label class="key-row">
         <input type="checkbox" value="${escapeHtml(mask)}" class="new-key-mask-cb">
-        ${escapeHtml(fallbackLabel[mask])}
-        <a href="#" onclick="event.preventDefault();renameCard('${escapeHtml(mask)}')" style="font-size:11px;color:var(--ink-soft);margin-left:auto;">rename</a>
+        <span class="key-row-label" title="${escapeHtml(fallbackLabel[mask])}">${escapeHtml(fallbackLabel[mask])}</span>
+        <span class="key-row-actions">
+          <a href="#" onclick="event.preventDefault();renameCard('${escapeHtml(mask)}')">rename</a>
+        </span>
       </label>
     `);
   });
@@ -565,15 +582,15 @@ async function loadAccessKeys(){
     const { keys } = await res.json();
     if(!keys.length){ el.innerHTML = '<em>No restricted keys created yet.</em>'; return; }
     el.innerHTML = keys.map(k => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
-        <div>
+      <div class="saved-key-row">
+        <div class="saved-key-label">
           <strong style="color:var(--ink);">${escapeHtml(k.label)}</strong> — ${k.allowedMasks.map(m=>{
             const nick = (state.cardNicknames || {})[m];
             return nick ? `${escapeHtml(nick)} (•••• ${escapeHtml(m)})` : '•••• '+escapeHtml(m);
-          }).join(', ')}<br>
-          <span style="font-family:var(--mono);font-size:11px;">${escapeHtml(k.secret)}</span>
+          }).join(', ')}
+          <span class="saved-key-secret">${escapeHtml(k.secret)}</span>
         </div>
-        <button type="button" onclick="revokeAccessKey('${k.secret}')" style="background:none;border:none;color:var(--red);font-size:12px;cursor:pointer;">Revoke</button>
+        <button type="button" onclick="revokeAccessKey('${k.secret}')" style="background:none;border:none;color:var(--red);font-size:12px;cursor:pointer;white-space:nowrap;">Revoke</button>
       </div>
     `).join('');
   }catch(err){
