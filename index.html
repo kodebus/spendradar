@@ -533,7 +533,15 @@ async function loadAccessKeys(){
   if(!el || !state.appSecret) return;
   try{
     const res = await fetch('/api/access-keys', { method:'GET', headers:{ 'x-app-secret': state.appSecret } });
-    if(!res.ok){ el.textContent = 'Could not load keys.'; return; }
+    if(!res.ok){
+      // Surface the actual status instead of a generic message, so a real
+      // auth mismatch (401/403) is distinguishable from a genuine server
+      // error (500) at a glance.
+      let detail = '';
+      try{ const body = await res.json(); if(body?.error) detail = ' — ' + body.error; }catch(e){}
+      el.textContent = `Could not load keys (HTTP ${res.status}${detail}).`;
+      return;
+    }
     const { keys } = await res.json();
     if(!keys.length){ el.innerHTML = '<em>No restricted keys created yet.</em>'; return; }
     el.innerHTML = keys.map(k => `
@@ -550,7 +558,7 @@ async function loadAccessKeys(){
     `).join('');
   }catch(err){
     console.error(err);
-    el.textContent = 'Could not load keys.';
+    el.textContent = 'Could not load keys (network error — see console).';
   }
 }
 async function createAccessKey(){
