@@ -342,12 +342,12 @@
       </div>
       <div class="hint" style="margin-top:6px;">A restricted key only ever sees transactions from the card(s) you check above — not your other cards, and it can't connect or disconnect banks.</div>
     </div>
-    <div class="modal-buttons" style="justify-content:space-between;">
-      <button type="button" style="background:none;border:none;color:var(--red);font-size:12.5px;cursor:pointer;padding:0;" onclick="resetApp()">Reset everything</button>
-      <div style="display:flex;gap:10px;">
-        <button class="btn-sm" onclick="closeSettings()">Cancel</button>
-        <button class="btn-sm primary" onclick="saveSettings()">Save</button>
-      </div>
+    <div class="modal-buttons">
+      <button class="btn-sm" onclick="closeSettings()">Cancel</button>
+      <button class="btn-sm primary" onclick="saveSettings()">Save</button>
+    </div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);text-align:right;">
+      <button type="button" style="background:none;border:none;color:var(--ink-soft);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;" onclick="resetApp()">Reset everything (advanced)</button>
     </div>
   </div>
 </div>
@@ -686,7 +686,7 @@ async function saveSettings(){
 }
 
 function resetApp(){
-  const ok = confirm('This clears all transactions and resets the Cycle reset day back to default. Your bank connection stays linked. This can\'t be undone. Continue?');
+  const ok = confirm('This permanently deletes ALL transactions and resets the Cycle reset day.\n\nImportant: Plaid will NOT resend transactions it has already delivered once, so bank-synced transactions can only come back by disconnecting and fully reconnecting that bank afterward — "Sync now" alone will not restore them.\n\nCard nicknames and restricted keys are NOT affected by this.\n\nThis cannot be undone. Continue?');
   if(!ok) return;
   state.cycleDay = null;
   state.transactions = [];
