@@ -939,7 +939,14 @@ async function syncBankTransactions(){
       merchant: t.merchant,
       amount: Math.abs(t.amount),
       category: t.category || guessCategory(t.merchant || ''),
-      source: t.source || 'Bank'
+      source: t.source || 'Bank',
+      // This was previously dropped here, which meant the real per-card
+      // identifier never actually reached state.transactions — only the
+      // human-readable "source" label did. That silently broke restricted-
+      // key card selection even when the backend was tagging things
+      // correctly, since renderNewKeyMaskCheckboxes() reads account_mask
+      // specifically, not source.
+      account_mask: t.account_mask || ''
     }));
     startReview(parsed);
     setBankStatus(`Synced ${transactions.length} transaction(s) from your bank just now (${syncedLabel}) — review below.`);
