@@ -172,6 +172,12 @@
      every row's checkbox, label, and action links lined up regardless of
      label length, and truncates instead of wrapping. */
   .key-row{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;column-gap:8px;padding:5px 0;}
+  /* This sits inside a .field wrapper (for spacing consistency with the rest
+     of the Settings form), but .field label{display:block} elsewhere has
+     higher specificity than .key-row alone and was silently overriding
+     display:grid, which is why every row was stacking into three lines
+     instead of forming columns. The compound selector below outranks that. */
+  .field label.key-row{display:grid;}
   .key-row .key-row-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;}
   .key-row .key-row-actions{display:flex;gap:8px;white-space:nowrap;}
   .key-row .key-row-actions a{font-size:11px;color:var(--ink-soft);}
