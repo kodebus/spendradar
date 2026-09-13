@@ -355,6 +355,7 @@ function save(){
 // ---------- shared server-side state (so settings/transactions aren't stuck on one device) ----------
 const SYNCED_FIELDS = ['name','limit','cycleDay','transactions','bankConnections','lastSyncedAt','manualMethod','cardNicknames'];
 let pushTimer = null;
+let nextPushIsConfirmedReset = false; // set true only by resetApp()'s deliberate, user-confirmed wipe
 function schedulePushToServer(){
   if(!state.appSecret) return;
   clearTimeout(pushTimer);
@@ -364,12 +365,31 @@ async function pushStateToServer(){
   if(!state.appSecret) return;
   const payload = {};
   SYNCED_FIELDS.forEach(f => payload[f] = state[f]);
+  if(nextPushIsConfirmedReset){
+    // Tells the server this empty/reduced transactions list is intentional
+    // (the user just confirmed "Reset everything"), not a stale device
+    // accidentally overwriting real data — see app-state.js's guard.
+    payload.confirmReset = true;
+    nextPushIsConfirmedReset = false;
+  }
   try{
-    await fetch('/api/app-state', {
+    const res = await fetch('/api/app-state', {
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'x-app-secret': state.appSecret },
       body: JSON.stringify(payload)
     });
+    try{
+      const data = await res.json();
+      if(data && data.transactionsProtected){
+        // The server declined to apply what looked like an accidental mass
+        // deletion of transactions. Pull the real (protected) state back
+        // down so this device isn't left showing data that no longer
+        // matches what's actually saved.
+        console.warn('Server protected existing transactions from an unexpected overwrite; re-syncing.', data);
+        await pullStateFromServer();
+        render();
+      }
+    }catch(e){ /* non-JSON or empty response is fine to ignore here */ }
   }catch(err){
     console.error('Failed to sync state to server', err);
   }
@@ -635,6 +655,7 @@ function resetApp(){
   state.transactions = [];
   state.manualMethod = null;
   // bankConnections is intentionally left alone — connected banks stay linked
+  nextPushIsConfirmedReset = true; // tells the server this wipe is intentional, not accidental
   save();
   closeSettings();
   render();
