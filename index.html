@@ -1192,6 +1192,7 @@ function deleteTx(i){
     if(!ok) return;
   }
   state.transactions.splice(i,1);
+  nextPushIsConfirmedReset = true; // an explicit, user-confirmed deletion — not a stale-device accident
   save();
   render();
 }
@@ -1203,6 +1204,13 @@ function clearAll(){
   if(!confirm(`Remove ${count} transaction(s) ${label}? This cannot be undone. Transactions outside this view won't be touched.`)) return;
   state.transactions = state.transactions.filter(t => !inScope(t));
   txDisplayLimit = 15;
+  // This can easily drop the transaction count by more than half (e.g.
+  // clearing everything shown) — without this flag, app-state.js's
+  // accidental-wipe guard (added to stop a stale device from silently
+  // overwriting real data) would mistake this deliberate, user-confirmed
+  // bulk delete for exactly that kind of accident and quietly keep the
+  // old transactions on the server instead.
+  nextPushIsConfirmedReset = true;
   save();
   render();
 }
